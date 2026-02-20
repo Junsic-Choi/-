@@ -199,17 +199,58 @@ app.get('/api/holidays/:equipment/:weekId', (req, res) => {
     });
 });
 
-// 4. Get consolidated plans per weekId
+// 4. Get consolidated plans per weekId (with Carryover support)
 app.get('/api/plans-consolidated/:weekId', (req, res) => {
     const { weekId } = req.params;
     console.log(`[GET] /api/plans-consolidated/${weekId} requested`);
-    db.all(`SELECT * FROM plans WHERE weekId = ? ORDER BY equipment ASC, id ASC`, [weekId], (err, rows) => {
+
+    // 1. Get all machines
+    // 2. For each machine, get current week data or latest past data
+    db.all(`SELECT * FROM plans WHERE weekId = ? ORDER BY equipment ASC, id ASC`, [weekId], (err, currentRows) => {
         if (err) {
             console.error('Database error [plans-consolidated]:', err.message);
             return res.status(500).json({ success: false, error: err.message });
         }
-        console.log(`[GET] /api/plans-consolidated/${weekId} returned ${rows.length} rows`);
-        res.json({ success: true, data: rows });
+
+        // If there's already data for this week, return it
+        if (currentRows && currentRows.length > 0) {
+            console.log(`[GET] /api/plans-consolidated/${weekId} returned ${currentRows.length} existing rows`);
+            return res.json({ success: true, data: currentRows });
+        }
+
+        // If no data, we need to gather carryover for ALL equipment
+        console.log(`[GET] /api/plans-consolidated/${weekId} - Fetching carryover from past weeks`);
+
+        // Find most recent week for each machine
+        db.all(`SELECT * FROM plans ORDER BY weekId DESC`, [], (err, allData) => {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+
+            const consolidatedData = [];
+            const equipmentHandled = new Set();
+
+            // allData is sorted by weekId DESC
+            // For each machine, we take the first weekId that has data (the most recent one)
+            ALL_EQUIPMENTS.forEach(eq => {
+                const machineData = allData.filter(d => d.equipment === eq);
+                if (machineData.length > 0) {
+                    const latestWeekIdFound = machineData[0].weekId;
+                    const latestRows = machineData.filter(d => d.weekId === latestWeekIdFound);
+
+                    latestRows.forEach(row => {
+                        consolidatedData.push({
+                            ...row,
+                            id: undefined,
+                            weekId: weekId,
+                            mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "",
+                            mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: ""
+                        });
+                    });
+                }
+            });
+
+            console.log(`[GET] /api/plans-consolidated/${weekId} returned ${consolidatedData.length} carryover rows`);
+            res.json({ success: true, data: consolidatedData });
+        });
     });
 });
 
