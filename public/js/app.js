@@ -79,28 +79,35 @@ async function fetchEquipments() {
 
 // Refresh Manager List and Equipment Tabs based on current week's data
 async function refreshManagerFilterAndTabs() {
-    console.log("Refreshing manager filter and tabs (Week-specific):", currentWeekId);
-    let currentWeekManagers = new Set();
+    console.log("Refreshing manager filter and tabs:", currentWeekId);
+    let allManagersSet = new Set();
     managerEquipmentMap = {};
 
     try {
+        // 1. Fetch ALL managers globally to ensure dropdown is never empty
+        const mRes = await fetch(`${API_BASE}/managers`);
+        const mJson = await mRes.json();
+        if (mJson.success && Array.isArray(mJson.data)) {
+            mJson.data.forEach(m => { if (m) allManagersSet.add(m); });
+        }
+
+        // 2. Fetch current week for mapping (enables equipment filtering)
         const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
 
         if (json.success && Array.isArray(json.data)) {
             json.data.forEach(plan => {
                 if (plan.manager) {
-                    currentWeekManagers.add(plan.manager);
+                    allManagersSet.add(plan.manager);
                     if (!managerEquipmentMap[plan.manager]) managerEquipmentMap[plan.manager] = new Set();
                     managerEquipmentMap[plan.manager].add(plan.equipment);
                 }
             });
         }
     } catch (err) {
-        console.error("Failed to fetch week-specific managers", err);
+        console.error("Data refresh error:", err);
     } finally {
-        // Always update options and render tabs
-        updateManagerOptions(currentWeekManagers);
+        updateManagerOptions(allManagersSet);
         renderTabs();
     }
 }
@@ -219,8 +226,6 @@ async function loadPlans(equipment) {
         const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
         planTableBody.innerHTML = '';
-
-        let loadedManagers = new Set();
 
         if (json.success && json.data.length > 0) {
             json.data.forEach((plan, index) => {
