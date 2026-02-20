@@ -221,17 +221,18 @@ app.get('/api/plans-consolidated/:weekId', (req, res) => {
         // If no data, we need to gather carryover for ALL equipment
         console.log(`[GET] /api/plans-consolidated/${weekId} - Fetching carryover from past weeks`);
 
-        // Find most recent week for each machine
-        db.all(`SELECT * FROM plans ORDER BY weekId DESC`, [], (err, allData) => {
-            if (err) return res.status(500).json({ success: false, error: err.message });
+        // Find most recent week for each machine that is <= requested weekId
+        db.all(`SELECT * FROM plans WHERE weekId <= ? ORDER BY weekId DESC`, [weekId], (err, allData) => {
+            if (err) {
+                console.error('Database error [plans-consolidated-carryover]:', err.message);
+                return res.status(500).json({ success: false, error: err.message });
+            }
 
             const consolidatedData = [];
-            const equipmentHandled = new Set();
 
-            // allData is sorted by weekId DESC
-            // For each machine, we take the first weekId that has data (the most recent one)
             ALL_EQUIPMENTS.forEach(eq => {
-                const machineData = allData.filter(d => d.equipment === eq);
+                // Use a more relaxed match for equipment names (trimming)
+                const machineData = allData.filter(d => d.equipment.trim() === eq.trim());
                 if (machineData.length > 0) {
                     const latestWeekIdFound = machineData[0].weekId;
                     const latestRows = machineData.filter(d => d.weekId === latestWeekIdFound);
