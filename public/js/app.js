@@ -1,0 +1,481 @@
+const API_BASE = '/api';
+let equipments = [];
+let currentEquipment = null;
+let currentWeekId = getInitialWeekId();
+
+// DOM Elements
+const equipmentTabs = document.getElementById('equipmentTabs');
+const weekPicker = document.getElementById('weekPicker');
+const weekDisplay = document.getElementById('weekDisplay');
+const managerFilter = document.getElementById('managerFilter');
+const btnSave = document.getElementById('saveBtn');
+const btnAddRow = document.getElementById('addRowBtn');
+const planTableBody = document.getElementById('planTableBody');
+const planEditor = document.getElementById('planEditor');
+const consolidatedView = document.getElementById('consolidatedView');
+const consolidatedTableBody = document.getElementById('consolidatedTableBody');
+const currentEquipmentTitle = document.getElementById('currentEquipmentTitle');
+const btnRefreshConsolidated = document.getElementById('refreshConsolidatedBtn');
+const toastEl = document.getElementById('toast');
+
+// Initialize
+async function init() {
+    weekPicker.value = currentWeekId;
+    updateTableHeadersForWeek(currentWeekId);
+
+    // Make the custom text div trigger the native date picker when clicked
+    weekDisplay.addEventListener('click', () => {
+        try {
+            weekPicker.showPicker();
+        } catch (e) {
+            // Fallback for browsers that don't support showPicker on week input
+            weekPicker.focus();
+        }
+    });
+
+    weekPicker.addEventListener('change', async (e) => {
+        if (!e.target.value) {
+            e.target.value = currentWeekId; // prevent clearing
+            return;
+        }
+        currentWeekId = e.target.value;
+        updateTableHeadersForWeek(currentWeekId);
+        await refreshManagerFilterAndTabs(); // Update manager filter and possible tabs for new week
+        if (currentEquipment) {
+            loadPlans(currentEquipment);
+        } else {
+            loadConsolidatedPlans();
+        }
+    });
+
+    managerFilter.addEventListener('change', () => {
+        renderTabs(); // Filter tabs based on manager
+        applyManagerFilter(); // Filter rows in current editor
+    });
+
+    await fetchEquipments();
+    if (equipments.length > 0) {
+        selectEquipment(equipments[0]); // Select first tab by default
+    }
+}
+
+// Global mapping of which manager is on which equipment this week
+let managerEquipmentMap = {};
+
+// Fetch Equipments List
+async function fetchEquipments() {
+    try {
+        const res = await fetch(`${API_BASE}/equipments`);
+        const json = await res.json();
+        if (json.success) {
+            equipments = json.data;
+            await refreshManagerFilterAndTabs();
+        }
+    } catch (err) {
+        console.error("Failed to load equipments", err);
+    }
+}
+
+// Refresh Manager List and Equipment Tabs based on current week's data
+async function refreshManagerFilterAndTabs() {
+    try {
+        const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+        const json = await res.json();
+        const allManagers = new Set();
+        managerEquipmentMap = {};
+
+        if (json.success && json.data.length > 0) {
+            json.data.forEach(plan => {
+                if (plan.manager) {
+                    allManagers.add(plan.manager);
+                    if (!managerEquipmentMap[plan.manager]) managerEquipmentMap[plan.manager] = new Set();
+                    managerEquipmentMap[plan.manager].add(plan.equipment);
+                }
+            });
+        }
+        updateManagerOptions(allManagers);
+        renderTabs();
+    } catch (err) {
+        console.error("Failed to refresh manager filter", err);
+    }
+}
+
+// Render Tabs
+function renderTabs() {
+    equipmentTabs.innerHTML = '';
+    const selectedManager = managerFilter.value;
+
+    // Equipment Tabs
+    equipments.forEach(eq => {
+        const li = document.createElement('li');
+        li.textContent = eq;
+        li.onclick = () => selectEquipment(eq);
+        if (eq === currentEquipment) li.classList.add('active');
+        equipmentTabs.appendChild(li);
+    });
+
+    // Consolidated Tab
+    const consLi = document.createElement('li');
+    consLi.textContent = "📊 통합 화면";
+    consLi.className = "tab-consolidated";
+    consLi.onclick = () => selectConsolidatedView();
+    if (!currentEquipment) consLi.classList.add('active');
+    equipmentTabs.appendChild(consLi);
+}
+
+// Tab Selection
+function selectEquipment(equipment) {
+    currentEquipment = equipment;
+    document.querySelectorAll('.tabs li').forEach(li => {
+        li.classList.remove('active');
+        if (li.textContent === equipment) li.classList.add('active');
+    });
+
+    planEditor.classList.add('active');
+    consolidatedView.classList.remove('active');
+    currentEquipmentTitle.textContent = `${equipment} 장비 계획 입력`;
+
+    // Do not reset managerFilter.value here, loadPlans will handle applying it.
+    loadPlans(equipment);
+}
+
+function selectConsolidatedView() {
+    currentEquipment = null;
+    document.querySelectorAll('.tabs li').forEach(li => {
+        li.classList.remove('active');
+        if (li.textContent.includes('통합 화면')) li.classList.add('active');
+    });
+
+    planEditor.classList.remove('active');
+    consolidatedView.classList.add('active');
+
+    loadConsolidatedPlans();
+}
+
+// Load Plans for Editor
+async function loadPlans(equipment) {
+    // managerFilter.value = ''; // Reset filter when switching equipment/week - REMOVED to allow filter persistence
+    planTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">로딩중...</td></tr>';
+    try {
+        const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
+        const json = await res.json();
+        planTableBody.innerHTML = '';
+
+        let loadedManagers = new Set();
+
+        if (json.success && json.data.length > 0) {
+            json.data.forEach((plan, index) => {
+                planTableBody.appendChild(createRow(index + 1, plan));
+            });
+        } else {
+            for (let i = 1; i <= 5; i++) {
+                planTableBody.appendChild(createRow(i));
+            }
+        }
+        // Ensure global filter is applied to the newly loaded data
+        applyManagerFilter();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+// Update Manager Options for Dropdown
+function updateManagerOptions(managerSet) {
+    const currentSelectedManager = managerFilter.value; // Preserve current selection
+    managerFilter.innerHTML = '<option value="">전체 항목</option>';
+    managerSet.forEach(manager => {
+        const option = document.createElement('option');
+        option.value = manager;
+        option.textContent = manager;
+        managerFilter.appendChild(option);
+    });
+    // Restore selection if it's still a valid option
+    if (currentSelectedManager && managerSet.has(currentSelectedManager)) {
+        managerFilter.value = currentSelectedManager;
+    }
+}
+
+// Client Side Manager Filter
+function applyManagerFilter() {
+    const filterText = managerFilter.value.toLowerCase().trim();
+    const rows = planTableBody.querySelectorAll('tr');
+
+    rows.forEach(row => {
+        const managerInput = row.querySelector('input[name="manager"]');
+        if (!managerInput) return; // Ignore if not a standard row
+        const val = managerInput.value.toLowerCase().trim();
+        // Show if: 1) filter is empty, or 2) name matches, or 3) name is empty (to allow new entries)
+        if (filterText === '' || val.includes(filterText) || val === '') {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Create Editable Row
+function createRow(index, data = {}) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td style="width: 3%; text-align: center;">${index}</td>
+        <td style="width: 8%;"><input type="text" name="manager" value="${data.manager || ''}" placeholder="담당자"></td>
+        <td style="width: 12%;"><input type="text" name="model" value="${data.model || ''}" placeholder="기종"></td>
+        <td style="width: 22%;"><input type="text" name="partName" value="${data.partName || ''}" placeholder="품명" style="width: 100%;"></td>
+        <td style="width: 22%;"><input type="text" name="partNo" value="${data.partNo || ''}" placeholder="품번" style="width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="mon" value="${data.mon || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="tue" value="${data.tue || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="wed" value="${data.wed || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="thu" value="${data.thu || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="fri" value="${data.fri || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="sat" value="${data.sat || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="sun" value="${data.sun || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
+        <td style="width: 5%;"><button class="btn btn-danger" onclick="this.closest('tr').remove()">삭제</button></td>
+    `;
+    return tr;
+}
+
+// Add New Row Event
+btnAddRow.addEventListener('click', () => {
+    const nextIndex = planTableBody.children.length + 1;
+    planTableBody.appendChild(createRow(nextIndex));
+});
+
+// Save Plans Event
+btnSave.addEventListener('click', async () => {
+    if (!currentEquipment) return;
+
+    const rows = planTableBody.querySelectorAll('tr');
+    const plansToSave = [];
+
+    rows.forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        const plan = {};
+        inputs.forEach(input => {
+            plan[input.name] = input.value.trim();
+        });
+
+        // Only save rows that have at least some basic information or plan data
+        const hasData = Object.values(plan).some(v => v !== '');
+        if (hasData) {
+            plansToSave.push(plan);
+        }
+    });
+
+    try {
+        const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(currentEquipment)}/${encodeURIComponent(currentWeekId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plans: plansToSave })
+        });
+        const json = await res.json();
+        if (json.success) {
+            showToast(`[${currentEquipment}] 계획이 성공적으로 저장되었습니다! 🎉`);
+            loadPlans(currentEquipment); // Reload to format IDs
+        } else {
+            alert('저장 실패: ' + json.error);
+        }
+    } catch (err) {
+        console.error(err);
+        alert('네트워크 오류가 발생했습니다.');
+    }
+});
+
+// Load Consolidated View
+async function loadConsolidatedPlans() {
+    consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
+    try {
+        const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+        const json = await res.json();
+
+        consolidatedTableBody.innerHTML = '';
+        if (json.success && json.data.length > 0) {
+            // Group by equipment
+            const groups = {};
+            json.data.forEach(plan => {
+                const eq = plan.equipment;
+                if (!groups[eq]) groups[eq] = [];
+                groups[eq].push(plan);
+            });
+
+            const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+            for (const [eq, plans] of Object.entries(groups)) {
+                // Calculate group rate
+                let groupPlanTotal = 0;
+                let groupActTotal = 0;
+
+                plans.forEach(p => {
+                    days.forEach(d => {
+                        groupPlanTotal += parseInt(p[d]) || 0;
+                        groupActTotal += parseInt(p[`${d}_act`]) || 0;
+                    });
+                });
+
+                const rate = groupPlanTotal > 0 ? Math.round((groupActTotal / groupPlanTotal) * 100) : 0;
+
+                // Render Group Header
+                const headerTr = document.createElement('tr');
+                headerTr.className = 'group-header';
+                headerTr.innerHTML = `<td colspan="13">${eq} (총 실적률: ${rate}%)</td>`;
+                consolidatedTableBody.appendChild(headerTr);
+
+                // Render Rows
+                plans.forEach(plan => {
+                    const getCellHtml = (day) => {
+                        const pStr = plan[day] || '';
+                        const aStr = plan[`${day}_act`] || '';
+                        const pVal = parseInt(pStr) || 0;
+                        const aVal = parseInt(aStr) || 0;
+
+                        const isCompleted = pStr !== '' && aVal >= pVal && pVal > 0;
+                        const tdClass = isCompleted ? 'class="completed-cell"' : '';
+
+                        return `<td ${tdClass} style="vertical-align: middle;">
+                            <div class="stats-row"><span class="plan-val-text">${pStr}</span></div>
+                            <div class="stats-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2"></div>
+                        </td>`;
+                    };
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong>${plan.equipment}</strong></td>
+                        <td>${plan.manager}</td>
+                        <td>${plan.model}</td>
+                        <td>${plan.partName}</td>
+                        <td>${plan.partNo}</td>
+                        <td class="type-cell">
+                            <div class="stats-row center">계획</div>
+                            <div class="stats-row center">실적</div>
+                        </td>
+                        ${getCellHtml('mon')}
+                        ${getCellHtml('tue')}
+                        ${getCellHtml('wed')}
+                        ${getCellHtml('thu')}
+                        ${getCellHtml('fri')}
+                        ${getCellHtml('sat')}
+                        ${getCellHtml('sun')}
+                    `;
+                    consolidatedTableBody.appendChild(tr);
+                });
+            }
+        } else {
+            consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">주간 계획이 등록된 장비가 없습니다.</td></tr>';
+        }
+    } catch (err) {
+        console.error(err);
+        consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
+    }
+}
+
+// Refresh Consolidated View
+document.getElementById('refreshConsolidatedBtn').addEventListener('click', loadConsolidatedPlans);
+
+// Phase 7: Save Actuals
+document.getElementById('saveActualsBtn').addEventListener('click', async () => {
+    const inputs = document.querySelectorAll('.act-input');
+    const updateMap = {};
+
+    inputs.forEach(input => {
+        const id = input.getAttribute('data-id');
+        const day = input.getAttribute('data-day'); // e.g. 'mon_act'
+        const val = input.value.trim();
+
+        if (!updateMap[id]) updateMap[id] = { id: id };
+        updateMap[id][day] = val;
+    });
+
+    const actualsArray = Object.values(updateMap);
+
+    if (actualsArray.length === 0) {
+        showToast('저장할 실적 데이터가 없습니다.', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/plans-actuals`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ actuals: actualsArray })
+        });
+        const json = await res.json();
+
+        if (json.success) {
+            showToast('✅ 실적 데이터가 성공적으로 저장되었습니다!');
+            loadConsolidatedPlans(); // refresh to recalculate rates/colors
+        } else {
+            alert('저장 실패: ' + json.error);
+        }
+    } catch (err) {
+        console.error(err);
+        alert('네트워크 오류가 발생했습니다.');
+    }
+});
+
+// Helpers
+function highlightPlan(value) {
+    if (!value) return '-';
+    return `<span style="color: var(--primary); font-weight: 600;">${value}</span>`;
+}
+
+function showToast(message) {
+    toastEl.textContent = message;
+    toastEl.classList.remove('hidden');
+    setTimeout(() => {
+        toastEl.classList.add('hidden');
+    }, 3000);
+}
+
+function getInitialWeekId() {
+    // Get current week string like "2026-W08"
+    const now = new Date();
+    const oneJan = new Date(now.getFullYear(), 0, 1);
+    const numberOfDays = Math.floor((now - oneJan) / (24 * 60 * 60 * 1000));
+    const weekNumber = Math.ceil((now.getDay() + 1 + numberOfDays) / 7);
+    return `${now.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
+}
+
+function updateTableHeadersForWeek(weekString) {
+    // weekString format: "2026-W08"
+    if (!weekString) return;
+
+    // Convert ISO week to start date (Monday)
+    const year = parseInt(weekString.substring(0, 4));
+    const week = parseInt(weekString.substring(6, 8));
+
+    // Simple calculation for week start date (ISO standard)
+    const simpleDate = new Date(year, 0, 1 + (week - 1) * 7);
+    const dow = simpleDate.getDay();
+    const ISOweekStart = simpleDate;
+    if (dow <= 4)
+        ISOweekStart.setDate(simpleDate.getDate() - simpleDate.getDay() + 1);
+    else
+        ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const korDays = ['월', '화', '수', '목', '금', '토', '일'];
+
+    let startDateStr = "";
+    let endDateStr = "";
+
+    for (let i = 0; i < 7; i++) {
+        const targetDate = new Date(ISOweekStart);
+        targetDate.setDate(ISOweekStart.getDate() + i);
+        const formattedDate = `${targetDate.getMonth() + 1}/${targetDate.getDate()}`;
+
+        if (i === 0) startDateStr = formattedDate;
+        if (i === 6) endDateStr = formattedDate;
+
+        const thEq = document.getElementById(`th${days[i]}`);
+        const thCon = document.getElementById(`thCons${days[i]}`);
+
+        if (thEq) thEq.textContent = `${korDays[i]} (${formattedDate})`;
+        if (thCon) thCon.textContent = `${korDays[i]} (${formattedDate})`;
+    }
+
+    if (weekDisplay) {
+        weekDisplay.textContent = `📅 ${startDateStr} ~ ${endDateStr}`;
+    }
+}
+
+// Build Layout
+init();

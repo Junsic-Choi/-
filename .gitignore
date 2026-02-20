@@ -1,0 +1,11 @@
+node_modules/
+server/database.sqlite
+.DS_Store
+*.log
+.env
+.agents/
+.agent/
+brain/
+walkthrough.md
+implementation_plan.md
+task.md

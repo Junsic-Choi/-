@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>정삭 장비 주간 계획 취합 시스템</title>
+    <!-- Google Fonts for Modern Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <div class="header-top">
+                <h1>주간 정삭 계획 현황</h1>
+                <div class="week-picker-container"
+                    style="position: relative; display: inline-flex; align-items: center; gap: 10px;">
+                    <label>기간 선택:</label>
+                    <div class="week-picker-wrapper" style="position: relative;">
+                        <!-- Custom text display -->
+                        <div id="weekDisplay" class="week-display"
+                            style="padding: 0.6rem 1rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); font-weight: 500; cursor: pointer;">
+                            로딩중...
+                        </div>
+                        <!-- Invisible native week input -->
+                        <input type="week" id="weekPicker" class="week-picker">
+                    </div>
+                    <!-- Moved Manager Filter here -->
+                    <div class="filter-group" style="margin-left: 10px;">
+                        <label for="managerFilter" style="font-weight: 600; font-size: 0.9rem;">👤 담당자:</label>
+                        <select id="managerFilter"
+                            style="padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer; font-size: 0.9rem;">
+                            <option value="">전체 항목</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <p>각 장비별 계획을 입력하고 [통합 화면]에서 전체 현황을 확인하세요.</p>
+        </header>
+
+        <nav class="tabs-container">
+            <ul id="equipmentTabs" class="tabs">
+                <!-- Tabs will be injected here dynamically -->
+            </ul>
+        </nav>
+
+        <main>
+            <!-- Content for specific equipment -->
+            <section id="planEditor" class="tab-content active">
+                <div class="editor-header">
+                    <h2 id="currentEquipmentTitle">장비명 로딩중...</h2>
+                </div>
+
+                <div class="table-card table-responsive">
+                    <table id="planTable">
+                        <thead>
+                            <tr>
+                                <th>NO</th>
+                                <th>담당자</th>
+                                <th>기종</th>
+                                <th>품명</th>
+                                <th>품번</th>
+                                <th id="thMon">월</th>
+                                <th id="thTue">화</th>
+                                <th id="thWed">수</th>
+                                <th id="thThu">목</th>
+                                <th id="thFri">금</th>
+                                <th id="thSat">토</th>
+                                <th id="thSun">일</th>
+                                <th>작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="planTableBody">
+                            <!-- Rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-secondary" id="addRowBtn">+ 행 추가 (Add Row)</button>
+                    <button class="btn btn-primary" id="saveBtn">✓ 계획 저장하기 (SAVE)</button>
+                </div>
+            </section>
+
+            <!-- Content for Consolidated View -->
+            <section id="consolidatedView" class="tab-content">
+                <div class="editor-header">
+                    <h2>통합 화면 : 전체 주간 정삭 계획 및 실적</h2>
+                    <div class="filter-group">
+                        <button class="btn btn-primary" id="saveActualsBtn">💾 실적 저장</button>
+                        <button class="btn btn-secondary" id="refreshConsolidatedBtn">🔄 새로고침</button>
+                    </div>
+                </div>
+                <div class="table-card table-responsive">
+                    <table id="consolidatedTable">
+                        <thead>
+                            <tr>
+                                <th>장비 (W/C)</th>
+                                <th>담당자</th>
+                                <th>기종</th>
+                                <th>품명</th>
+                                <th>품번</th>
+                                <th id="thType">구분</th>
+                                <th id="thConsMon">월</th>
+                                <th id="thConsTue">화</th>
+                                <th id="thConsWed">수</th>
+                                <th id="thConsThu">목</th>
+                                <th id="thConsFri">금</th>
+                                <th id="thConsSat">토</th>
+                                <th id="thConsSun">일</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consolidatedTableBody">
+                            <!-- Rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast hidden">저장되었습니다.</div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
