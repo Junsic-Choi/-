@@ -79,37 +79,28 @@ async function fetchEquipments() {
 
 // Refresh Manager List and Equipment Tabs based on current week's data
 async function refreshManagerFilterAndTabs() {
-    console.log("Refreshing manager filter and tabs for week:", currentWeekId);
-    let allManagers = new Set();
-    try {
-        // 1. Fetch ALL managers for the global filter
-        const mRes = await fetch(`${API_BASE}/managers`);
-        const mJson = await mRes.json();
-        if (mJson.success && Array.isArray(mJson.data)) {
-            mJson.data.forEach(m => { if (m) allManagers.add(m); });
-        }
-        console.log("Managers loaded from DB:", allManagers.size);
+    console.log("Refreshing manager filter and tabs (Week-specific):", currentWeekId);
+    let currentWeekManagers = new Set();
+    managerEquipmentMap = {};
 
-        // 2. Fetch current week's data for mapping
+    try {
         const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
-        managerEquipmentMap = {};
 
         if (json.success && Array.isArray(json.data)) {
             json.data.forEach(plan => {
                 if (plan.manager) {
-                    allManagers.add(plan.manager);
+                    currentWeekManagers.add(plan.manager);
                     if (!managerEquipmentMap[plan.manager]) managerEquipmentMap[plan.manager] = new Set();
                     managerEquipmentMap[plan.manager].add(plan.equipment);
                 }
             });
         }
-        console.log("Total unique managers including current week:", allManagers.size);
     } catch (err) {
-        console.error("Failed to refresh manager data", err);
+        console.error("Failed to fetch week-specific managers", err);
     } finally {
-        // Always update options and render tabs even if some fetches failed
-        updateManagerOptions(allManagers);
+        // Always update options and render tabs
+        updateManagerOptions(currentWeekManagers);
         renderTabs();
     }
 }
