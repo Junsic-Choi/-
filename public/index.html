@@ -8,6 +8,74 @@
     <!-- Google Fonts for Modern Typography -->
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* Phase 18: Holiday UI Styles */
+        .holiday-section {
+            background: #fff;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 5px solid #ff4d4f;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .holiday-label {
+            font-weight: 700;
+            color: #333;
+            font-size: 0.95rem;
+        }
+
+        .holiday-toggles {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .holiday-btn {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .holiday-btn.active {
+            background: #ff4d4f;
+            color: #fff;
+            border-color: #ff4d4f;
+        }
+
+        .holiday-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .holiday-btn.active:hover {
+            background: #ff7875;
+        }
+
+        .holiday-column {
+            background-color: #fcebeb !important;
+        }
+
+        .holiday-column input {
+            background-color: #f5f5f5 !important;
+            color: #999 !important;
+            border-color: #ddd !important;
+            cursor: not-allowed;
+        }
+
+        .holiday-cell-text {
+            color: #ff4d4f;
+            font-weight: 700;
+            font-size: 0.8rem;
+            margin-top: 2px;
+        }
+    </style>
 </head>
 
 <body>
@@ -53,6 +121,21 @@
                     <h2 id="currentEquipmentTitle">장비명 로딩중...</h2>
                 </div>
 
+                <!-- Phase 18: Holiday Toggle UI -->
+                <div class="holiday-section">
+                    <div class="holiday-label">📅 장비 휴무일 설정 (휴무) :</div>
+                    <div class="holiday-toggles" id="holidayToggles">
+                        <button class="holiday-btn" data-day="mon">월</button>
+                        <button class="holiday-btn" data-day="tue">화</button>
+                        <button class="holiday-btn" data-day="wed">수</button>
+                        <button class="holiday-btn" data-day="thu">목</button>
+                        <button class="holiday-btn" data-day="fri">금</button>
+                        <button class="holiday-btn" data-day="sat">토</button>
+                        <button class="holiday-btn" data-day="sun">일</button>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #666; margin-left: auto;">* 휴무로 선택된 요일은 계획 입력이 차단됩니다.</div>
+                </div>
+
                 <div class="table-card table-responsive">
                     <table id="planTable">
                         <thead>
@@ -78,8 +161,8 @@
                     </table>
                 </div>
                 <div class="actions">
-                    <button class="btn btn-secondary" id="addRowBtn">+ 행 추가 (Add Row)</button>
-                    <button class="btn btn-primary" id="saveBtn">✓ 계획 저장하기 (SAVE)</button>
+                    <button class="btn btn-secondary" id="addRowBtn">+ 행 추가</button>
+                    <button class="btn btn-primary" id="saveBtn">✓ 계획 저장하기</button>
                 </div>
             </section>
 

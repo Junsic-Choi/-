@@ -46,6 +46,22 @@ const db = new sqlite3.Database(dbPath, (err) => {
             db.run(`ALTER TABLE plans ADD COLUMN ${day}_act TEXT DEFAULT ''`, (err) => { /* Ignore duplicate column errs */ });
         });
 
+        // Phase 18: Add equipment_holidays table
+        db.run(`CREATE TABLE IF NOT EXISTS equipment_holidays (
+            equipment TEXT NOT NULL,
+            weekId TEXT NOT NULL,
+            mon INTEGER DEFAULT 0,
+            tue INTEGER DEFAULT 0,
+            wed INTEGER DEFAULT 0,
+            thu INTEGER DEFAULT 0,
+            fri INTEGER DEFAULT 0,
+            sat INTEGER DEFAULT 0,
+            sun INTEGER DEFAULT 0,
+            PRIMARY KEY (equipment, weekId)
+        )`, (err) => {
+            if (err) console.error(err);
+        });
+
         // Phase 6: Update old equipment names
         db.run(`UPDATE plans SET equipment = 'HSP8000 #1' WHERE equipment = 'HSP8000'`, (err) => {
             if (err) console.error(err);
@@ -157,6 +173,43 @@ app.post('/api/plans/:equipment/:weekId', (req, res) => {
                 res.json({ success: true, message: 'Plans saved successfully.' });
             });
         });
+    });
+});
+
+// Phase 18: Holidays API
+app.get('/api/holidays/:equipment/:weekId', (req, res) => {
+    const { equipment, weekId } = req.params;
+    db.get(`SELECT * FROM equipment_holidays WHERE equipment = ? AND weekId = ?`, [equipment, weekId], (err, row) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true, data: row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 } });
+    });
+});
+
+app.get('/api/holidays-all/:weekId', (req, res) => {
+    const { weekId } = req.params;
+    db.all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId], (err, rows) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        const map = {};
+        rows.forEach(r => {
+            map[r.equipment] = r;
+        });
+        res.json({ success: true, data: map });
+    });
+});
+
+app.post('/api/holidays', (req, res) => {
+    const { equipment, weekId, holidays } = req.body;
+    const { mon, tue, wed, thu, fri, sat, sun } = holidays;
+    const sql = `
+        INSERT INTO equipment_holidays (equipment, weekId, mon, tue, wed, thu, fri, sat, sun)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(equipment, weekId) DO UPDATE SET
+            mon=excluded.mon, tue=excluded.tue, wed=excluded.wed, 
+            thu=excluded.thu, fri=excluded.fri, sat=excluded.sat, sun=excluded.sun
+    `;
+    db.run(sql, [equipment, weekId, mon, tue, wed, thu, fri, sat, sun], function (err) {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true, message: 'Holidays updated successfully.' });
     });
 });
 

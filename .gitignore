@@ -9,3 +9,7 @@ brain/
 walkthrough.md
 implementation_plan.md
 task.md
+*.zip
+*.vsix
+ReadMe.md
+.git/

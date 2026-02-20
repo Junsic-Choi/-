@@ -2,6 +2,7 @@ const API_BASE = '/api';
 let equipments = [];
 let currentEquipment = null;
 let currentWeekId = getInitialWeekId();
+let currentHolidays = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
 
 // DOM Elements
 const equipmentTabs = document.getElementById('equipmentTabs');
@@ -139,6 +140,56 @@ function selectEquipment(equipment) {
     loadPlans(equipment);
 }
 
+// Phase 18: Holiday Management Logic
+async function fetchHolidays(equipment) {
+    try {
+        const res = await fetch(`${API_BASE}/holidays/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+            currentHolidays = json.data;
+        } else {
+            currentHolidays = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+        }
+        renderHolidayUI();
+    } catch (err) {
+        console.error("Failed to fetch holidays", err);
+    }
+}
+
+function renderHolidayUI() {
+    const btns = document.querySelectorAll('.holiday-btn');
+    btns.forEach(btn => {
+        const day = btn.getAttribute('data-day');
+        if (currentHolidays[day] === 1) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+async function toggleHoliday(day) {
+    currentHolidays[day] = currentHolidays[day] === 1 ? 0 : 1;
+    renderHolidayUI();
+    try {
+        await fetch(`${API_BASE}/holidays`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                equipment: currentEquipment,
+                weekId: currentWeekId,
+                holidays: currentHolidays
+            })
+        });
+        // After saving, reload current table to apply disabled states
+        loadPlans(currentEquipment);
+    } catch (err) {
+        console.error("Failed to save holiday", err);
+        showToast("휴무일 저장에 실패했습니다.");
+    }
+}
+
+
 function selectConsolidatedView() {
     currentEquipment = null;
     document.querySelectorAll('.tabs li').forEach(li => {
@@ -156,6 +207,10 @@ function selectConsolidatedView() {
 async function loadPlans(equipment) {
     // managerFilter.value = ''; // Reset filter when switching equipment/week - REMOVED to allow filter persistence
     planTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">로딩중...</td></tr>';
+
+    // Fetch holidays first
+    await fetchHolidays(equipment);
+
     try {
         const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
@@ -174,6 +229,8 @@ async function loadPlans(equipment) {
         }
         // Ensure global filter is applied to the newly loaded data
         applyManagerFilter();
+        // Phase 18: Apply visual/logic for holidays
+        applyHolidayRestrictions();
     } catch (err) {
         console.error(err);
     }
@@ -210,6 +267,49 @@ function applyManagerFilter() {
         } else {
             row.style.display = 'none';
         }
+    });
+}
+
+function applyHolidayRestrictions() {
+    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+    // Header cells
+    days.forEach(day => {
+        const thId = 'th' + day.charAt(0).toUpperCase() + day.slice(1);
+        const th = document.getElementById(thId);
+        if (!th) return;
+
+        const baseLabel = th.dataset.label || th.textContent.split(' ')[0];
+        th.dataset.label = baseLabel; // Store for reuse
+
+        if (currentHolidays[day] === 1) {
+            th.classList.add('holiday-column');
+            th.innerHTML = `${baseLabel}<br><span class="holiday-cell-text">(휴무)</span>`;
+        } else {
+            th.classList.remove('holiday-column');
+            th.innerHTML = baseLabel;
+        }
+    });
+
+    // Body cells
+    const rows = planTableBody.querySelectorAll('tr');
+    rows.forEach(row => {
+        days.forEach(day => {
+            const input = row.querySelector(`input[name="${day}"]`);
+            if (!input) return;
+            const td = input.parentElement;
+
+            if (currentHolidays[day] === 1) {
+                td.classList.add('holiday-column');
+                input.disabled = true;
+                input.placeholder = "X";
+                input.value = "";
+            } else {
+                td.classList.remove('holiday-column');
+                input.disabled = false;
+                input.placeholder = "";
+            }
+        });
     });
 }
 
@@ -287,6 +387,11 @@ async function loadConsolidatedPlans() {
         const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
 
+        // Phase 18: Fetch all holidays for this week
+        const hRes = await fetch(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`);
+        const hJson = await hRes.json();
+        const holidaysMap = hJson.data || {}; // { equipment: { mon: 1, ... } }
+
         consolidatedTableBody.innerHTML = '';
         if (json.success && json.data.length > 0) {
             // Group by equipment
@@ -300,6 +405,8 @@ async function loadConsolidatedPlans() {
             const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
             for (const [eq, plans] of Object.entries(groups)) {
+                const equipmentHolidays = holidaysMap[eq] || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+
                 // Calculate group rate
                 let groupPlanTotal = 0;
                 let groupActTotal = 0;
@@ -321,21 +428,6 @@ async function loadConsolidatedPlans() {
 
                 // Render Rows
                 plans.forEach(plan => {
-                    const getCellHtml = (day) => {
-                        const pStr = plan[day] || '';
-                        const aStr = plan[`${day}_act`] || '';
-                        const pVal = parseInt(pStr) || 0;
-                        const aVal = parseInt(aStr) || 0;
-
-                        const isCompleted = pStr !== '' && aVal >= pVal && pVal > 0;
-                        const tdClass = isCompleted ? 'class="completed-cell"' : '';
-
-                        return `<td ${tdClass} style="vertical-align: middle;">
-                            <div class="stats-row"><span class="plan-val-text">${pStr}</span></div>
-                            <div class="stats-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2"></div>
-                        </td>`;
-                    };
-
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td><strong>${plan.equipment}</strong></td>
@@ -347,13 +439,13 @@ async function loadConsolidatedPlans() {
                             <div class="stats-row center">계획</div>
                             <div class="stats-row center">실적</div>
                         </td>
-                        ${getCellHtml('mon')}
-                        ${getCellHtml('tue')}
-                        ${getCellHtml('wed')}
-                        ${getCellHtml('thu')}
-                        ${getCellHtml('fri')}
-                        ${getCellHtml('sat')}
-                        ${getCellHtml('sun')}
+                        ${getCellHtml(plan, 'mon', equipmentHolidays)}
+                        ${getCellHtml(plan, 'tue', equipmentHolidays)}
+                        ${getCellHtml(plan, 'wed', equipmentHolidays)}
+                        ${getCellHtml(plan, 'thu', equipmentHolidays)}
+                        ${getCellHtml(plan, 'fri', equipmentHolidays)}
+                        ${getCellHtml(plan, 'sat', equipmentHolidays)}
+                        ${getCellHtml(plan, 'sun', equipmentHolidays)}
                     `;
                     consolidatedTableBody.appendChild(tr);
                 });
@@ -366,6 +458,25 @@ async function loadConsolidatedPlans() {
         consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
     }
 }
+
+const getCellHtml = (plan, day, equipmentHolidays) => {
+    const isHoliday = equipmentHolidays && equipmentHolidays[day] === 1;
+    const pStr = plan[day] || '';
+    const aStr = plan[`${day}_act`] || '';
+    const pVal = parseInt(pStr) || 0;
+    const aVal = parseInt(aStr) || 0;
+
+    const isCompleted = pStr !== '' && aVal >= pVal && pVal > 0;
+
+    let tdClass = '';
+    if (isHoliday) tdClass = 'class="holiday-column"';
+    else if (isCompleted) tdClass = 'class="completed-cell"';
+
+    return `<td ${tdClass} style="vertical-align: middle;">
+        <div class="stats-row"><span class="plan-val-text">${isHoliday ? 'X' : pStr}</span></div>
+        <div class="stats-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled placeholder="X"' : ''}></div>
+    </td>`;
+};
 
 // Refresh Consolidated View
 document.getElementById('refreshConsolidatedBtn').addEventListener('click', loadConsolidatedPlans);
@@ -475,6 +586,18 @@ function updateTableHeadersForWeek(weekString) {
     if (weekDisplay) {
         weekDisplay.textContent = `📅 ${startDateStr} ~ ${endDateStr}`;
     }
+}
+
+
+// Phase 18: Holiday Toggle Click
+const holidayToggles = document.getElementById('holidayToggles');
+if (holidayToggles) {
+    holidayToggles.onclick = (e) => {
+        if (e.target.classList.contains('holiday-btn')) {
+            const day = e.target.getAttribute('data-day');
+            toggleHoliday(day);
+        }
+    };
 }
 
 // Build Layout
