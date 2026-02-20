@@ -86,11 +86,14 @@ app.get('/api/equipments', (req, res) => {
 
 // 2. Get all distinct managers from the database
 app.get('/api/managers', (req, res) => {
+    console.log(`[GET] /api/managers requested`);
     db.all(`SELECT DISTINCT manager FROM plans WHERE manager IS NOT NULL AND manager != '' ORDER BY manager ASC`, [], (err, rows) => {
         if (err) {
+            console.error('Database error [managers]:', err.message);
             return res.status(500).json({ success: false, error: err.message });
         }
         const managers = rows.map(row => row.manager);
+        console.log(`[GET] /api/managers returned ${managers.length} managers`);
         res.json({ success: true, data: managers });
     });
 });
