@@ -84,7 +84,18 @@ app.get('/api/equipments', (req, res) => {
     res.json({ success: true, data: ALL_EQUIPMENTS });
 });
 
-// 2. Get plans for a specific equipment AND weekId
+// 2. Get all distinct managers from the database
+app.get('/api/managers', (req, res) => {
+    db.all(`SELECT DISTINCT manager FROM plans WHERE manager IS NOT NULL AND manager != '' ORDER BY manager ASC`, [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ success: false, error: err.message });
+        }
+        const managers = rows.map(row => row.manager);
+        res.json({ success: true, data: managers });
+    });
+});
+
+// 3. Get plans for a specific equipment AND weekId
 app.get('/api/plans/:equipment/:weekId', (req, res) => {
     const { equipment, weekId } = req.params;
 
@@ -185,14 +196,33 @@ app.get('/api/holidays/:equipment/:weekId', (req, res) => {
     });
 });
 
+// 4. Get consolidated plans per weekId
+app.get('/api/plans-consolidated/:weekId', (req, res) => {
+    const { weekId } = req.params;
+    console.log(`[GET] /api/plans-consolidated/${weekId} requested`);
+    db.all(`SELECT * FROM plans WHERE weekId = ? ORDER BY equipment ASC, id ASC`, [weekId], (err, rows) => {
+        if (err) {
+            console.error('Database error [plans-consolidated]:', err.message);
+            return res.status(500).json({ success: false, error: err.message });
+        }
+        console.log(`[GET] /api/plans-consolidated/${weekId} returned ${rows.length} rows`);
+        res.json({ success: true, data: rows });
+    });
+});
+
 app.get('/api/holidays-all/:weekId', (req, res) => {
     const { weekId } = req.params;
+    console.log(`[GET] /api/holidays-all/${weekId} requested`);
     db.all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId], (err, rows) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
+        if (err) {
+            console.error('Database error [holidays-all]:', err.message);
+            return res.status(500).json({ success: false, error: err.message });
+        }
         const map = {};
         rows.forEach(r => {
             map[r.equipment] = r;
         });
+        console.log(`[GET] /api/holidays-all/${weekId} returned ${rows.length} holiday settings`);
         res.json({ success: true, data: map });
     });
 });

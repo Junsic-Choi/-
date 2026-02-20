@@ -172,6 +172,7 @@
                     <h2>통합 화면 : 전체 주간 정삭 계획 및 실적</h2>
                     <div class="filter-group">
                         <button class="btn btn-primary" id="saveActualsBtn">💾 실적 저장</button>
+                        <button class="btn btn-success" id="exportExcelBtn">📥 엑셀 추출</button>
                         <button class="btn btn-secondary" id="refreshConsolidatedBtn">🔄 새로고침</button>
                     </div>
                 </div>
@@ -206,6 +207,8 @@
         <div id="toast" class="toast hidden">저장되었습니다.</div>
     </div>
 
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="js/app.js"></script>
 </body>
 

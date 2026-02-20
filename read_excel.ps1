@@ -9,14 +9,13 @@ foreach ($worksheet in $workbook.Worksheets) {
     $rows = $range.Rows.Count
     $cols = $range.Columns.Count
     Write-Host "Rows: $rows, Cols: $cols"
-    for ($r=1; $r -le [math]::Min($rows, 20); $r++) {
+    for ($r = 1; $r -le 15; $r++) { 
         $rowData = ""
-        for ($c=1; $c -le [math]::Min($cols, 10); $c++) {
+        for ($c = 1; $c -le 15; $c++) {
             $val = $range.Cells.Item($r, $c).Text
             if ($null -eq $val) { $val = "" }
-            # remove newlines within cells to avoid messy output
-            $val = $val -replace "`n"," " -replace "`r",""
-            $rowData += $val + "|TAB|"
+            $val = $val -replace "`n", " " -replace "`r", ""
+            $rowData += "[$r,$c]$val|TAB|"
         }
         Write-Host $rowData
     }

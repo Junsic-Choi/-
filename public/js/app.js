@@ -80,15 +80,20 @@ async function fetchEquipments() {
 // Refresh Manager List and Equipment Tabs based on current week's data
 async function refreshManagerFilterAndTabs() {
     try {
+        // 1. Fetch ALL managers for the global filter
+        const mRes = await fetch(`${API_BASE}/managers`);
+        const mJson = await mRes.json();
+        const allManagers = new Set(mJson.data || []);
+
+        // 2. Fetch current week's data for mapping (if needed for tab highlighting/logic)
         const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
-        const allManagers = new Set();
         managerEquipmentMap = {};
 
         if (json.success && json.data.length > 0) {
             json.data.forEach(plan => {
                 if (plan.manager) {
-                    allManagers.add(plan.manager);
+                    allManagers.add(plan.manager); // Ensure any new ones in this week are included
                     if (!managerEquipmentMap[plan.manager]) managerEquipmentMap[plan.manager] = new Set();
                     managerEquipmentMap[plan.manager].add(plan.equipment);
                 }
@@ -598,6 +603,108 @@ if (holidayToggles) {
             toggleHoliday(day);
         }
     };
+}
+
+// 엑셀 추출 기능 (SheetJS 사용) - 기존 양식 참조 고도화
+async function exportToExcel() {
+    try {
+        const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+        const json = await res.json();
+
+        if (!json.success || json.data.length === 0) {
+            showToast('추출할 데이터가 없습니다.', 'error');
+            return;
+        }
+
+        const hRes = await fetch(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`);
+        const hJson = await hRes.json();
+        const holidaysMap = hJson.data || {};
+
+        // 주차 시작일 계산 (헤더용 날짜 정보)
+        const year = parseInt(currentWeekId.substring(0, 4));
+        const week = parseInt(currentWeekId.substring(6, 8));
+        const simpleDate = new Date(year, 0, 1 + (week - 1) * 7);
+        const dow = simpleDate.getDay();
+        const ISOweekStart = new Date(simpleDate);
+        if (dow <= 4)
+            ISOweekStart.setDate(simpleDate.getDate() - simpleDate.getDay() + 1);
+        else
+            ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
+
+        const worksheetData = [];
+
+        // 헤더 구성 (기존 양식 참조)
+        const headerRow = ['NO', '담당자', '기종', '품명', '품번', '구분', '장비(W/C)'];
+        const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+        const korDays = ['월', '화', '수', '목', '금', '토', '일'];
+
+        days.forEach((d, i) => {
+            const targetDate = new Date(ISOweekStart);
+            targetDate.setDate(ISOweekStart.getDate() + i);
+            const dateStr = `${targetDate.getMonth() + 1}/${targetDate.getDate()}`;
+            headerRow.push(`${korDays[i]}(${dateStr})`);
+        });
+        worksheetData.push(headerRow);
+
+        json.data.forEach((plan, index) => {
+            const eq = plan.equipment;
+            const h = holidaysMap[eq] || {};
+
+            // 계획 행
+            const planRow = [
+                index + 1,
+                plan.manager || '',
+                plan.model || '',
+                plan.partName || '',
+                plan.partNo || '',
+                '계획',
+                eq
+            ];
+            days.forEach(d => {
+                planRow.push(h[d] === 1 ? 'X' : (plan[d] || ''));
+            });
+            worksheetData.push(planRow);
+
+            // 실적 행
+            const actRow = [
+                '', '', '', '', '', '실적', ''
+            ];
+            days.forEach(d => {
+                actRow.push(h[d] === 1 ? 'X' : (plan[`${d}_act`] || ''));
+            });
+            worksheetData.push(actRow);
+        });
+
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+        // 열 너비 조정
+        worksheet['!cols'] = [
+            { wch: 5 },  // NO
+            { wch: 10 }, // 담당자
+            { wch: 15 }, // 기종
+            { wch: 25 }, // 품명
+            { wch: 25 }, // 품번
+            { wch: 8 },  // 구분
+            { wch: 15 }, // 장비(W/C)
+            { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 } // 요일
+        ];
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, "통합계획");
+
+        // 다운로드 실행
+        XLSX.writeFile(workbook, `정삭계획_통합_${currentWeekId}.xlsx`);
+        showToast('기존 양식이 반영된 엑셀 파일이 생성되었습니다.');
+    } catch (err) {
+        console.error('Export failed:', err);
+        alert('엑셀 추출 중 오류가 발생했습니다.');
+    }
+}
+
+// 엑셀 추출 버튼 이벤트
+const exportExcelBtn = document.getElementById('exportExcelBtn');
+if (exportExcelBtn) {
+    exportExcelBtn.onclick = exportToExcel;
 }
 
 // Build Layout
