@@ -178,17 +178,22 @@ header p {
     background: var(--card-bg);
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    overflow: hidden;
     margin-bottom: 1rem;
+    overflow: visible;
+    /* CRITICAL: Never hide overflow for sticky page layout */
 }
 
-.table-responsive {
-    overflow-x: auto;
+/* Table Wrapper for Sticky Scroll Context */
+.table-scroll-wrapper {
+    width: 100%;
+    overflow: visible;
+    /* NO scrollbars here, page must scroll */
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
+    /* Edge requires collapse for full table grid rendering */
     text-align: left;
     min-width: 1000px;
     table-layout: auto;
@@ -214,6 +219,34 @@ th {
     letter-spacing: 0.05em;
     border: 1px solid var(--border-color);
     /* Added explicit borders for grid look */
+}
+
+/* Make thead sticky */
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+}
+
+thead tr {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+}
+
+thead th {
+    position: -webkit-sticky !important;
+    /* Safari */
+    position: sticky !important;
+    /* Edge needs sticky on th as well */
+    top: 0 !important;
+    z-index: 50 !important;
+    /* High z-index */
+    background-color: #F8FAFC !important;
+    background-clip: padding-box !important;
+    /* PRVENTS background from covering borders in Edge */
+    /* Ensure a shadow beneath the sticky header to mark the 'freeze pane' boundary */
+    box-shadow: inset 0 -1px 0 var(--border-color), 0 2px 4px -2px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Consolidated Grid Specifics */

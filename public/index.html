@@ -7,8 +7,30 @@
     <title>정삭 장비 주간 계획 취합 시스템</title>
     <!-- Google Fonts for Modern Typography -->
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=3">
     <style>
+        /* CRITICAL STICKY RULES - INLINE TO BEAT BROWSER CACHE */
+        .table-scroll-wrapper {
+            width: 100%;
+            height: 65vh;
+            /* INTERNAL SCROLL HEIGHT */
+            overflow: auto !important;
+            /* Enable internal scrolling */
+            border-bottom: 2px solid var(--primary);
+        }
+
+        thead th {
+            position: -webkit-sticky !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 9999 !important;
+            background-color: #F8FAFC !important;
+            background-clip: padding-box !important;
+            box-shadow: inset 0 -1px 0 var(--border-color), 0 2px 4px -2px rgba(0, 0, 0, 0.15) !important;
+            text-align: center !important;
+            /* ONLY CENTERING THE HEADER TEXT */
+        }
+
         /* Phase 18: Holiday UI Styles */
         .holiday-section {
             background: #fff;
@@ -93,7 +115,7 @@
                             로딩중...
                         </div>
                         <!-- Invisible native week input -->
-                        <input type="week" id="weekPicker" class="week-picker">
+                        <input type="date" id="weekPicker" class="week-picker">
                     </div>
                     <!-- Moved Manager Filter here -->
                     <div class="filter-group" style="margin-left: 10px;">
@@ -125,40 +147,42 @@
                 <div class="holiday-section">
                     <div class="holiday-label">📅 장비 휴무일 설정 (휴무) :</div>
                     <div class="holiday-toggles" id="holidayToggles">
+                        <button class="holiday-btn" data-day="sun">일</button>
                         <button class="holiday-btn" data-day="mon">월</button>
                         <button class="holiday-btn" data-day="tue">화</button>
                         <button class="holiday-btn" data-day="wed">수</button>
                         <button class="holiday-btn" data-day="thu">목</button>
                         <button class="holiday-btn" data-day="fri">금</button>
                         <button class="holiday-btn" data-day="sat">토</button>
-                        <button class="holiday-btn" data-day="sun">일</button>
                     </div>
                     <div style="font-size: 0.85rem; color: #666; margin-left: auto;">* 휴무로 선택된 요일은 계획 입력이 차단됩니다.</div>
                 </div>
 
-                <div class="table-card table-responsive">
-                    <table id="planTable">
-                        <thead>
-                            <tr>
-                                <th>NO</th>
-                                <th>담당자</th>
-                                <th>기종</th>
-                                <th>품명</th>
-                                <th>품번</th>
-                                <th id="thMon">월</th>
-                                <th id="thTue">화</th>
-                                <th id="thWed">수</th>
-                                <th id="thThu">목</th>
-                                <th id="thFri">금</th>
-                                <th id="thSat">토</th>
-                                <th id="thSun">일</th>
-                                <th>작업</th>
-                            </tr>
-                        </thead>
-                        <tbody id="planTableBody">
-                            <!-- Rows injected here -->
-                        </tbody>
-                    </table>
+                <div class="table-card">
+                    <div class="table-scroll-wrapper" style="height: 60vh;">
+                        <table id="planTable">
+                            <thead>
+                                <tr>
+                                    <th>NO</th>
+                                    <th>담당자</th>
+                                    <th>기종</th>
+                                    <th>품명</th>
+                                    <th>품번</th>
+                                    <th id="thSun">일</th>
+                                    <th id="thMon">월</th>
+                                    <th id="thTue">화</th>
+                                    <th id="thWed">수</th>
+                                    <th id="thThu">목</th>
+                                    <th id="thFri">금</th>
+                                    <th id="thSat">토</th>
+                                    <th>작업</th>
+                                </tr>
+                            </thead>
+                            <tbody id="planTableBody">
+                                <!-- Rows injected here -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 <div class="actions">
                     <button class="btn btn-secondary" id="addRowBtn">+ 행 추가</button>
@@ -176,29 +200,31 @@
                         <button class="btn btn-secondary" id="refreshConsolidatedBtn">🔄 새로고침</button>
                     </div>
                 </div>
-                <div class="table-card table-responsive">
-                    <table id="consolidatedTable">
-                        <thead>
-                            <tr>
-                                <th>장비 (W/C)</th>
-                                <th>담당자</th>
-                                <th>기종</th>
-                                <th>품명</th>
-                                <th>품번</th>
-                                <th id="thType">구분</th>
-                                <th id="thConsMon">월</th>
-                                <th id="thConsTue">화</th>
-                                <th id="thConsWed">수</th>
-                                <th id="thConsThu">목</th>
-                                <th id="thConsFri">금</th>
-                                <th id="thConsSat">토</th>
-                                <th id="thConsSun">일</th>
-                            </tr>
-                        </thead>
-                        <tbody id="consolidatedTableBody">
-                            <!-- Rows injected here -->
-                        </tbody>
-                    </table>
+                <div class="table-card" style="overflow: visible !important;">
+                    <div class="table-scroll-wrapper">
+                        <table id="consolidatedTable">
+                            <thead>
+                                <tr>
+                                    <th>장비 (W/C)</th>
+                                    <th>담당자</th>
+                                    <th>기종</th>
+                                    <th>품명</th>
+                                    <th>품번</th>
+                                    <th id="thType">구분</th>
+                                    <th id="thConsSun">일</th>
+                                    <th id="thConsMon">월</th>
+                                    <th id="thConsTue">화</th>
+                                    <th id="thConsWed">수</th>
+                                    <th id="thConsThu">목</th>
+                                    <th id="thConsFri">금</th>
+                                    <th id="thConsSat">토</th>
+                                </tr>
+                            </thead>
+                            <tbody id="consolidatedTableBody">
+                                <!-- Rows injected here -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
         </main>
@@ -207,8 +233,8 @@
         <div id="toast" class="toast hidden">저장되었습니다.</div>
     </div>
 
-    <!-- SheetJS for Excel Export -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- SheetJS for Excel Export (Local Fallback for Intranet) -->
+    <script src="js/xlsx.full.min.js"></script>
     <script src="js/app.js"></script>
 </body>
 

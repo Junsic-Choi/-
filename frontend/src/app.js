@@ -1,4 +1,6 @@
-const API_BASE = '/api';
+
+
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 let equipments = [];
 let currentEquipment = null;
 let currentWeekId = getInitialWeekId();
@@ -298,7 +300,7 @@ function applyManagerFilter() {
 }
 
 function applyHolidayRestrictions() {
-    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
     // Header cells
     days.forEach(day => {
@@ -433,7 +435,7 @@ async function loadConsolidatedPlans() {
 
             for (const [eq, plans] of Object.entries(groups)) {
                 // Filter plans to only those with data (Actual planning hours must be present)
-                const activePlans = plans.filter(p => days.some(d => p[d] && String(p[d]).trim() !== ''));
+                const activePlans = plans.filter(p => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[d] && String(p[d]).trim() !== ''));
                 if (activePlans.length === 0) continue; // Skip equipment group if no active plans
 
                 const equipmentHolidays = holidaysMap[eq] || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
@@ -485,24 +487,13 @@ async function loadConsolidatedPlans() {
                 const totalRow = document.createElement('tr');
                 totalRow.className = 'group-total-row';
 
-                // Calculate daily plan sums and weekly average
+                // Calculate daily plan sums
                 const dailySums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
-                let totalWeeklyPlan = 0;
-                let activeDaysCount = 0;
-
-                days.forEach(d => {
-                    if (equipmentHolidays[d] !== 1) activeDaysCount++;
-                });
-
                 activePlans.forEach(p => {
                     days.forEach(d => {
-                        const val = parseInt(p[d]) || 0;
-                        dailySums[d] += val;
-                        totalWeeklyPlan += val;
+                        dailySums[d] += parseInt(p[d]) || 0;
                     });
                 });
-
-                const averagePerDay = activeDaysCount > 0 ? (totalWeeklyPlan / activeDaysCount) : 0;
 
                 let totalRowHtml = `
                     <td colspan="5" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">[${eq}] 일별 계획 합계</td>
@@ -512,12 +503,8 @@ async function loadConsolidatedPlans() {
                 `;
 
                 days.forEach(d => {
-                    const sum = dailySums[d];
-                    const isOverloaded = sum > averagePerDay && sum > 0;
-                    const colorStyle = isOverloaded ? 'color: #EF4444;' : 'color: #1E3A8A;';
-
-                    totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; ${colorStyle}">
-                        <div class="stats-row center">${sum > 0 ? sum : ''}</div>
+                    totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; color: #1E3A8A;">
+                        <div class="stats-row center">${dailySums[d] > 0 ? dailySums[d] : ''}</div>
                     </td>`;
                 });
 
@@ -687,7 +674,8 @@ function updateTableHeadersForWeek(weekString) {
     else
         ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
 
-    // Shift to Sunday start
+    // ISO week calculation always gives us a Monday.
+    // To make our week start on Sunday, we subtract 1 day from the ISO Monday.
     ISOweekStart.setDate(ISOweekStart.getDate() - 1);
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -728,12 +716,12 @@ if (holidayToggles) {
     };
 }
 
-// 엑셀 추출 기능 (SheetJS 사용) - 기존 양식 참조 고도화
+// 엑셀 추출 기능 (SheetJS 사용) - Cloudflare Edge 환경 지원을 위한 프론트엔드 처리 복구
 async function exportToExcel() {
     try {
-        // Use the new server-side styled export
-        window.location.href = `${API_BASE}/export-excel-styled/${encodeURIComponent(currentWeekId)}`;
-        showToast('엑셀 스타일이 적용된 파일이 생성됩니다...');
+        const wb = XLSX.utils.table_to_book(document.getElementById('consolidatedTable'), { sheet: "통합계획" });
+        XLSX.writeFile(wb, `Integrated_Plan_${currentWeekId}.xlsx`);
+        showToast('엑셀 파일이 다운로드 되었습니다.');
     } catch (err) {
         console.error('Export failed:', err);
         alert(`엑셀 추출 중 오류가 발생했습니다: ${err.message}`);
@@ -746,5 +734,5 @@ if (exportExcelBtn) {
     exportExcelBtn.onclick = exportToExcel;
 }
 
-// Build Layout
+// Initialize Layout immediately without checking auth (Cloudflare Access handles it)
 init();
