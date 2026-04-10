@@ -1,0 +1,6 @@
+name = "anti-test-frontend"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "anti-test-db"
+database_id = "b0d0de42-3ebb-44c8-b04b-706829295ad7"

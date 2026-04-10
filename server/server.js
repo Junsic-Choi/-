@@ -17,6 +17,11 @@ const db = new sqlite3.Database(dbPath, (err) => {
         console.error('Error opening database', err);
     } else {
         console.log('Database connected.');
+
+        // Enable WAL mode and set busy timeout for better concurrency handling
+        db.run('PRAGMA journal_mode = WAL;');
+        db.run('PRAGMA busy_timeout = 5000;');
+
         // Create table
         db.run(`CREATE TABLE IF NOT EXISTS plans (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

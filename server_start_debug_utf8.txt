@@ -1,0 +1,4 @@
+﻿Server is running on http://0.0.0.0:3000
+Local Access: http://localhost:3000
+Network Access: http://10.33.56.86:3000
+Database connected.

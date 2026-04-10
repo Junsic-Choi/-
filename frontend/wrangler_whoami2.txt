@@ -1,0 +1,33 @@
+
+ ⛅️ wrangler 4.68.1 (update available 4.69.0)
+─────────────────────────────────────────────
+Getting User settings...
+👋 You are logged in with an OAuth Token, associated with the email wns426754@gmail.com.
+┌───────────────────────────────┬──────────────────────────────────┐
+│ Account Name                  │ Account ID                       │
+├───────────────────────────────┼──────────────────────────────────┤
+│ Wns426754@gmail.com's Account │ c3b6c9b365e9ec96f95aa58f8f11167f │
+└───────────────────────────────┴──────────────────────────────────┘
+🔓 Token Permissions:
+Scope (Access)
+- account (read)
+- user (read)
+- workers (write)
+- workers_kv (write)
+- workers_routes (write)
+- workers_scripts (write)
+- workers_tail (read)
+- d1 (write)
+- pages (write)
+- zone (read)
+- ssl_certs (write)
+- ai (write)
+- ai-search (write)
+- ai-search (run)
+- queues (write)
+- pipelines (write)
+- secrets_store (write)
+- containers (write)
+- cloudchamber (write)
+- connectivity (admin)
+- offline_access 
