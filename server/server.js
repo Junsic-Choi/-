@@ -1,664 +1,484 @@
+require('dotenv').config();
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const { createClient } = require('@libsql/client');
 const cors = require('cors');
 const path = require('path');
+const ExcelJS = require('exceljs');
+const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3005;
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
+try {
+    app.use(cors());
+    app.use(express.json());
+    app.use(express.static(path.join(__dirname, '../public')));
 
-// Initialize SQLite Database
-const dbPath = path.resolve(__dirname, 'database.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Error opening database', err);
-    } else {
-        console.log('Database connected.');
+    // Simple Auth Configuration
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'DNS-FMS'; 
+    const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'mps_admin_secret_token_2026';
 
-        // Enable WAL mode and set busy timeout for better concurrency handling
-        db.run('PRAGMA journal_mode = WAL;');
-        db.run('PRAGMA busy_timeout = 5000;');
+    // Initialize Cloud-Ready Database (LibSQL / Turso)
+    console.log('--- SERVER VERSION: 1.2.0 (ADVANCED AUTH) ---');
+    const dbUrl = process.env.DATABASE_URL || `file:${path.resolve(__dirname, 'database.sqlite')}`;
+    const dbAuthToken = process.env.DATABASE_AUTH_TOKEN;
 
-        // Create table
-        db.run(`CREATE TABLE IF NOT EXISTS plans (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            equipment TEXT NOT NULL,
-            weekId TEXT NOT NULL DEFAULT '2026-W08',
-            manager TEXT,
-            model TEXT,
-            partName TEXT,
-            partNo TEXT,
-            mon TEXT,
-            tue TEXT,
-            wed TEXT,
-            thu TEXT,
-            fri TEXT,
-            sat TEXT,
-            sun TEXT,
-            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`, (err) => {
-            if (err) console.error(err);
-        });
-
-        // Ensure weekId column exists if table was already created in Phase 1
-        db.run(`ALTER TABLE plans ADD COLUMN weekId TEXT NOT NULL DEFAULT '2026-W08'`, (err) => { /* Ignore */ });
-
-        // Phase 7: Add Actuals columns
-        ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(day => {
-            db.run(`ALTER TABLE plans ADD COLUMN ${day}_act TEXT DEFAULT ''`, (err) => { /* Ignore duplicate column errs */ });
-        });
-
-        // Phase 18: Add equipment_holidays table
-        db.run(`CREATE TABLE IF NOT EXISTS equipment_holidays (
-            equipment TEXT NOT NULL,
-            weekId TEXT NOT NULL,
-            mon INTEGER DEFAULT 0,
-            tue INTEGER DEFAULT 0,
-            wed INTEGER DEFAULT 0,
-            thu INTEGER DEFAULT 0,
-            fri INTEGER DEFAULT 0,
-            sat INTEGER DEFAULT 0,
-            sun INTEGER DEFAULT 0,
-            PRIMARY KEY (equipment, weekId)
-        )`, (err) => {
-            if (err) console.error(err);
-        });
-
-        // Phase 6: Update old equipment names
-        db.run(`UPDATE plans SET equipment = 'HSP8000 #1' WHERE equipment = 'HSP8000'`, (err) => {
-            if (err) console.error(err);
-        });
-        db.run(`UPDATE plans SET equipment = 'HSP8000 #2' WHERE equipment = '#2'`, (err) => {
-            if (err) console.error(err);
-        });
-    }
-});
-
-// API Routes
-
-// 1. Get equipments list (Hardcoded or distinct from DB - let's offer a fixed list for UI)
-// Based on Excel "Holiday" sheet: HSP6300, HSP8000, HM2J, AH2J, Y10T, Y15T, YBM1530
-const ALL_EQUIPMENTS = [
-    "HSP6300", "HSP8000 #1", "HSP8000 #2", "HM2J", "AH2J", "Y10T", "Y15T", "YBM1530"
-];
-
-app.get('/api/equipments', (req, res) => {
-    res.json({ success: true, data: ALL_EQUIPMENTS });
-});
-
-// 2. Get all distinct managers from the database
-app.get('/api/managers', (req, res) => {
-    console.log(`[GET] /api/managers requested`);
-    db.all(`SELECT DISTINCT manager FROM plans WHERE manager IS NOT NULL AND manager != '' ORDER BY manager ASC`, [], (err, rows) => {
-        if (err) {
-            console.error('Database error [managers]:', err.message);
-            return res.status(500).json({ success: false, error: err.message });
-        }
-        const managers = rows.map(row => row.manager);
-        console.log(`[GET] /api/managers returned ${managers.length} managers`);
-        res.json({ success: true, data: managers });
+    const client = createClient({
+        url: dbUrl,
+        authToken: dbAuthToken,
     });
-});
 
-// 3. Get plans for a specific equipment AND weekId
-app.get('/api/plans/:equipment/:weekId', (req, res) => {
-    const { equipment, weekId } = req.params;
+    // Helper to maintain compatibility
+    const run = async (sql, params = []) => {
+        const result = await client.execute({ sql, args: params });
+        return { lastID: result.lastInsertRowid ? Number(result.lastInsertRowid) : null, changes: result.rowsAffected };
+    };
 
-    // First, try to get plans for the current requested week
-    db.all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? ORDER BY id ASC`, [equipment, weekId], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
+    const all = async (sql, params = []) => {
+        const result = await client.execute({ sql, args: params });
+        return result.rows;
+    };
+
+    const get = async (sql, params = []) => {
+        const result = await client.execute({ sql, args: params });
+        return result.rows[0] || null;
+    };
+
+    // Auth Middleware
+    const checkAuth = (req, res, next) => {
+        if (req.path === '/api/login') return next();
+        const authHeader = req.headers.authorization;
+        if (authHeader === `Bearer ${ADMIN_TOKEN}`) {
+            next();
+        } else {
+            res.status(401).json({ success: false, error: 'Unauthorized' });
         }
+    };
 
-        // If we found data, return it
-        if (rows && rows.length > 0) {
-            return res.json({ success: true, data: rows });
+    app.use('/api', (req, res, next) => {
+        if (req.path === '/login') return next();
+        checkAuth(req, res, next);
+    });
+
+    // Activity Logger Helper
+    const logActivity = async (req, action, details) => {
+        let username = req.get('X-User-Name') || 'unknown';
+        try { username = decodeURIComponent(username); } catch(e) {}
+        const ip = req.ip || req.get('x-forwarded-for');
+        const timestamp = Date.now();
+        try {
+            await run(`INSERT INTO activity_logs (username, action, details, ip, timestamp) VALUES (?, ?, ?, ?, ?)`, 
+                [username, action, details, ip, timestamp]);
+        } catch (err) {
+            console.error('Activity log failed:', err);
         }
+    };
 
-        // If no data for this week, fetch the most recent data for this equipment
-        // Sort by weekId descending (e.g., '2026-W08' > '2026-W07') to get the latest past week
-        // ADDED: weekId <= ? to prevent future data from carrying over
-        db.all(`SELECT * FROM plans WHERE equipment = ? AND weekId <= ? ORDER BY weekId DESC LIMIT 20`, [equipment, weekId], (err, pastRows) => {
-            if (err) {
-                return res.status(500).json({ success: false, error: err.message });
+    // Database Initialization
+    (async () => {
+        try {
+            console.log('Connecting to database...');
+            // Plans table
+            await run(`CREATE TABLE IF NOT EXISTS plans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                equipment TEXT NOT NULL,
+                weekId TEXT NOT NULL DEFAULT '2026-W08',
+                manager TEXT,
+                model TEXT,
+                partName TEXT,
+                partNo TEXT,
+                mon TEXT, tue TEXT, wed TEXT, thu TEXT, fri TEXT, sat TEXT, sun TEXT,
+                urgentStatus TEXT,
+                updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+            // Audit Logs table
+            await run(`CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                ip TEXT,
+                status TEXT,
+                timestamp TEXT
+            )`);
+
+            // Activity Logs table
+            await run(`CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                action TEXT,
+                details TEXT,
+                ip TEXT,
+                timestamp TEXT
+            )`);
+
+            const columns = await all(`PRAGMA table_info(plans)`);
+            const colNames = columns.map(c => c.name);
+
+            if (!colNames.includes('weekId')) {
+                await run(`ALTER TABLE plans ADD COLUMN weekId TEXT NOT NULL DEFAULT '2026-W08'`);
             }
 
-            if (pastRows && pastRows.length > 0) {
-                // Determine the most recent weekId from the past rows
-                const mostRecentWeekId = pastRows[0].weekId;
-                // Filter rows just for that most recent week
-                const latestWeekRows = pastRows.filter(r => r.weekId === mostRecentWeekId);
+            const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+            for (const day of days) {
+                if (!colNames.includes(`${day}_act`)) {
+                    await run(`ALTER TABLE plans ADD COLUMN ${day}_act TEXT DEFAULT ''`);
+                }
+            }
 
-                // Create placeholder rows, wiping out the day-specific values
+            if (!colNames.includes('urgentStatus')) {
+                await run(`ALTER TABLE plans ADD COLUMN urgentStatus TEXT DEFAULT ''`);
+            }
+
+            await run(`CREATE TABLE IF NOT EXISTS equipment_holidays (
+                equipment TEXT NOT NULL,
+                weekId TEXT NOT NULL,
+                mon INTEGER DEFAULT 0, tue INTEGER DEFAULT 0, wed INTEGER DEFAULT 0,
+                thu INTEGER DEFAULT 0, fri INTEGER DEFAULT 0, sat INTEGER DEFAULT 0, sun INTEGER DEFAULT 0,
+                PRIMARY KEY (equipment, weekId)
+            )`);
+
+            await run(`UPDATE plans SET equipment = 'HSP8000 #1' WHERE equipment = 'HSP8000'`);
+            await run(`UPDATE plans SET equipment = 'HSP8000 #2' WHERE equipment = '#2'`);
+            
+            console.log('Database initialization completed successfully.');
+        } catch (dbErr) {
+            console.error('Database initialization failed:', dbErr);
+            fs.appendFileSync('fatal_error.txt', `[DB_INIT] ${new Date().toISOString()}: ${dbErr.stack || dbErr.message}\n`);
+        }
+    })();
+
+    // API Routes
+    app.post('/api/login', async (req, res) => {
+        const { username, password } = req.body;
+        const ip = req.ip || req.get('x-forwarded-for');
+        const now = Date.now(); // Numeric timestamp
+        
+        if (password === ADMIN_PASSWORD) {
+            await run(`INSERT INTO audit_logs (username, ip, status, timestamp) VALUES (?, ?, ?, ?)`, [username || 'unknown', ip, 'SUCCESS', now]);
+            res.json({ success: true, token: ADMIN_TOKEN });
+        } else {
+            await run(`INSERT INTO audit_logs (username, ip, status, timestamp) VALUES (?, ?, ?, ?)`, [username || 'unknown', ip, 'FAILURE', now]);
+            res.status(401).json({ success: false, error: 'Invalid password' });
+        }
+    });
+
+    app.get('/api/logs', async (req, res) => {
+        try {
+            const rows = await all(`SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100`);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.get('/api/activity-logs', async (req, res) => {
+        try {
+            const rows = await all(`SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 200`);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.post('/api/urgent-status/:id', async (req, res) => {
+        const { id } = req.params;
+        const { urgentStatus } = req.body;
+        try {
+            await run(`UPDATE plans SET urgentStatus = ? WHERE id = ?`, [urgentStatus, id]);
+            await logActivity(req, '중점 항목 변경', `ID: ${id}, 상태: ${urgentStatus || '해제'}`);
+            res.json({ success: true, message: 'Urgent status updated.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    const ALL_EQUIPMENTS = [
+        "HSP6300", "HSP8000 #1", "HSP8000 #2", "HM2J", "AH2J", "Y10T", "Y15T", "YBM1530"
+    ];
+
+    app.get('/api/equipments', (req, res) => {
+        res.json({ success: true, data: ALL_EQUIPMENTS });
+    });
+
+    app.get('/api/managers', async (req, res) => {
+        try {
+            const rows = await all(`SELECT DISTINCT manager FROM plans WHERE manager IS NOT NULL AND manager != '' ORDER BY manager ASC`);
+            res.json({ success: true, data: rows.map(r => r.manager) });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.get('/api/plans/:equipment/:weekId', async (req, res) => {
+        const { equipment, weekId } = req.params;
+        try {
+            const rows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? ORDER BY id ASC`, [equipment, weekId]);
+            if (rows.length > 0) return res.json({ success: true, data: rows });
+
+            const pastRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId <= ? ORDER BY weekId DESC LIMIT 20`, [equipment, weekId]);
+            if (pastRows.length > 0) {
+                const mostRecentWeekId = pastRows[0].weekId;
+                const latestWeekRows = pastRows.filter(r => r.weekId === mostRecentWeekId);
                 const carryoverData = latestWeekRows.map(row => ({
-                    ...row,
-                    id: undefined, // Let the frontend/save layer handle new ids
-                    weekId: weekId, // Assign to the newly requested week
+                    ...row, id: undefined, weekId,
                     mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "",
                     mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: ""
                 }));
                 return res.json({ success: true, data: carryoverData });
             }
-
-            // Absolutely no data found previously or currently
             res.json({ success: true, data: [] });
-        });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
-});
 
-// 3. Save plans for a specific equipment AND weekId
-// This overrides existing plans for that equipment/weekId and sets new ones.
-// It ALSO synchronizes these plans to all existing future weeks for this equipment.
-app.post('/api/plans/:equipment/:weekId', (req, res) => {
-    const { equipment, weekId } = req.params;
-    const plans = req.body.plans; // Array of plan objects
-
-    db.serialize(() => {
-        db.run(`BEGIN TRANSACTION;`);
-
-        // --- 1. Save plans for the CURRENT week ---
-        db.run(`DELETE FROM plans WHERE equipment = ? AND weekId = ?`, [equipment, weekId], (err) => {
-            if (err) {
-                console.error("Delete Error", err);
-                db.run(`ROLLBACK;`);
-                return res.status(500).json({ success: false, error: err.message });
-            }
-        });
-
-        const stmt = db.prepare(`INSERT INTO plans 
-            (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-
-        plans.forEach(p => {
-            stmt.run([
-                equipment, weekId, p.manager || "", p.model || "", p.partName || "", p.partNo || "",
-                p.mon || "", p.tue || "", p.wed || "", p.thu || "", p.fri || "", p.sat || "", p.sun || ""
-            ]);
-        });
-        stmt.finalize();
-
-        // --- 2. Synchronize plans to FUTURE weeks ---
-        // Find all unique future weeks for this equipment
-        db.all(`SELECT DISTINCT weekId FROM plans WHERE equipment = ? AND weekId > ? ORDER BY weekId ASC`, [equipment, weekId], (err, futureWeeksRows) => {
-            if (err) {
-                console.error("Future Weeks Fetch Error", err);
-                db.run(`ROLLBACK;`);
-                return res.status(500).json({ success: false, error: err.message });
-            }
-
-            if (futureWeeksRows.length === 0) {
-                // No future weeks to sync, just commit
-                db.run(`COMMIT;`, (err) => {
-                    if (err) return res.status(500).json({ success: false, error: err.message });
-                    return res.json({ success: true, message: 'Plans saved successfully.' });
-                });
-                return;
-            }
-
-            // Sync each future week
-            let completedWeeks = 0;
-            const totalWeeks = futureWeeksRows.length;
-
-            futureWeeksRows.forEach(row => {
-                const targetWeek = row.weekId;
-
-                // Fetch existing data for the target week to preserve plan/actual values
-                db.all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ?`, [equipment, targetWeek], (err, targetRows) => {
-                    if (err) {
-                        db.run(`ROLLBACK;`);
-                        return res.status(500).json({ success: false, error: err.message });
-                    }
-
-                    // Delete existing rows for target week
-                    db.run(`DELETE FROM plans WHERE equipment = ? AND weekId = ?`, [equipment, targetWeek], (err) => {
-                        if (err) {
-                            db.run(`ROLLBACK;`);
-                            return res.status(500).json({ success: false, error: err.message });
-                        }
-
-                        // Insert the newly synced item list
-                        const syncStmt = db.prepare(`INSERT INTO plans 
-                            (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-
-                        plans.forEach(p => {
-                            // Try to find if this exact item existed in the target week
-                            const existingRow = targetRows.find(tr =>
-                                tr.partNo === p.partNo && tr.partName === p.partName && tr.model === p.model
-                            );
-
-                            syncStmt.run([
-                                equipment, targetWeek, p.manager || "", p.model || "", p.partName || "", p.partNo || "",
-                                existingRow ? existingRow.mon : "",
-                                existingRow ? existingRow.tue : "",
-                                existingRow ? existingRow.wed : "",
-                                existingRow ? existingRow.thu : "",
-                                existingRow ? existingRow.fri : "",
-                                existingRow ? existingRow.sat : "",
-                                existingRow ? existingRow.sun : "",
-                                existingRow ? existingRow.mon_act : "",
-                                existingRow ? existingRow.tue_act : "",
-                                existingRow ? existingRow.wed_act : "",
-                                existingRow ? existingRow.thu_act : "",
-                                existingRow ? existingRow.fri_act : "",
-                                existingRow ? existingRow.sat_act : "",
-                                existingRow ? existingRow.sun_act : ""
-                            ]);
-                        });
-                        syncStmt.finalize();
-
-                        completedWeeks++;
-                        if (completedWeeks === totalWeeks) {
-                            // All future weeks synced, commit
-                            db.run(`COMMIT;`, (err) => {
-                                if (err) return res.status(500).json({ success: false, error: err.message });
-                                return res.json({ success: true, message: 'Plans and future weeks synchronized successfully.' });
-                            });
-                        }
-                    });
+    app.post('/api/plans/:equipment/:weekId', async (req, res) => {
+        const { equipment, weekId } = req.params;
+        const plans = req.body.plans || [];
+        try {
+            const batch = [
+                { sql: `DELETE FROM plans WHERE equipment = ? AND weekId = ?`, args: [equipment, weekId] }
+            ];
+            plans.forEach(p => {
+                batch.push({
+                    sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [equipment, weekId, p.manager || "", p.model || "", p.partName || "", p.partNo || "", p.mon || "", p.tue || "", p.wed || "", p.thu || "", p.fri || "", p.sat || "", p.sun || ""]
                 });
             });
-        });
-    });
-});
-
-// Phase 18: Holidays API
-app.get('/api/holidays/:equipment/:weekId', (req, res) => {
-    const { equipment, weekId } = req.params;
-    db.get(`SELECT * FROM equipment_holidays WHERE equipment = ? AND weekId = ?`, [equipment, weekId], (err, row) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ success: true, data: row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 } });
-    });
-});
-
-// 4. Get consolidated plans per weekId (with Robust Per-Equipment Carryover)
-app.get('/api/plans-consolidated/:weekId', (req, res) => {
-    const { weekId } = req.params;
-    console.log(`[GET] /api/plans-consolidated/${weekId} requested`);
-
-    // Fetch ONLY the latest week's data per equipment, rather than ALL historical rows
-    const sql = `
-        SELECT p.* 
-        FROM plans p
-        INNER JOIN (
-            SELECT equipment, MAX(weekId) as maxWeek
-            FROM plans
-            WHERE weekId <= ?
-            GROUP BY equipment
-        ) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek
-    `;
-
-    db.all(sql, [weekId], (err, rows) => {
-        if (err) {
-            console.error('Database error [plans-consolidated]:', err.message);
-            return res.status(500).json({ success: false, error: err.message });
-        }
-
-        const consolidatedData = [];
-
-        // Process the rows to clear carryover data fields
-        const processedData = rows.map(row => {
-            if (row.weekId === weekId) {
-                return row;
-            } else {
-                return {
-                    ...row,
-                    id: undefined,
-                    weekId: weekId,
-                    mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "",
-                    mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: ""
-                };
+            
+            const futureWeeks = await all(`SELECT DISTINCT weekId FROM plans WHERE equipment = ? AND weekId > ? ORDER BY weekId ASC`, [equipment, weekId]);
+            for (const fw of futureWeeks) {
+                const targetWeek = fw.weekId;
+                const targetRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ?`, [equipment, targetWeek]);
+                batch.push({ sql: `DELETE FROM plans WHERE equipment = ? AND weekId = ?`, args: [equipment, targetWeek] });
+                plans.forEach(p => {
+                    const existing = targetRows.find(tr => tr.partNo === p.partNo && tr.partName === p.partName && tr.model === p.model);
+                    batch.push({
+                        sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        args: [equipment, targetWeek, p.manager || "", p.model || "", p.partName || "", p.partNo || "", existing ? existing.mon : "", existing ? existing.tue : "", existing ? existing.wed : "", existing ? existing.thu : "", existing ? existing.fri : "", existing ? existing.sat : "", existing ? existing.sun : "", existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""]
+                    });
+                });
             }
-        });
-
-        // Re-apply ALL_EQUIPMENTS ordering so the UI doesn't scramble the rows
-        ALL_EQUIPMENTS.forEach(eq => {
-            const machineData = processedData.filter(d => d.equipment.trim() === eq.trim());
-            machineData.forEach(row => consolidatedData.push(row));
-        });
-
-        console.log(`[GET] /api/plans-consolidated/${weekId} returned ${consolidatedData.length} rows (Optimized Mixed current/carryover)`);
-        res.json({ success: true, data: consolidatedData });
-    });
-});
-
-app.get('/api/holidays-all/:weekId', (req, res) => {
-    const { weekId } = req.params;
-    console.log(`[GET] /api/holidays-all/${weekId} requested`);
-    db.all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId], (err, rows) => {
-        if (err) {
-            console.error('Database error [holidays-all]:', err.message);
-            return res.status(500).json({ success: false, error: err.message });
+            await client.batch(batch, 'write');
+            await logActivity(req, '계획 수정/저장', `${equipment} (${weekId}) - ${plans.length}개 항목`);
+            res.json({ success: true, message: 'Plans synchronized successfully.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
         }
-        const map = {};
-        rows.forEach(r => {
-            map[r.equipment] = r;
-        });
-        console.log(`[GET] /api/holidays-all/${weekId} returned ${rows.length} holiday settings`);
-        res.json({ success: true, data: map });
     });
-});
 
-app.post('/api/holidays', (req, res) => {
-    const { equipment, weekId, holidays } = req.body;
-    const { mon, tue, wed, thu, fri, sat, sun } = holidays;
-    const sql = `
-        INSERT INTO equipment_holidays (equipment, weekId, mon, tue, wed, thu, fri, sat, sun)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(equipment, weekId) DO UPDATE SET
-            mon=excluded.mon, tue=excluded.tue, wed=excluded.wed, 
-            thu=excluded.thu, fri=excluded.fri, sat=excluded.sat, sun=excluded.sun
-    `;
-    db.run(sql, [equipment, weekId, mon, tue, wed, thu, fri, sat, sun], function (err) {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ success: true, message: 'Holidays updated successfully.' });
+    app.get('/api/holidays/:equipment/:weekId', async (req, res) => {
+        const { equipment, weekId } = req.params;
+        try {
+            const row = await get(`SELECT * FROM equipment_holidays WHERE equipment = ? AND weekId = ?`, [equipment, weekId]);
+            res.json({ success: true, data: row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 } });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
-});
 
-// 5. Save actuals from consolidated view
-// Expects body: { actuals: [{id: 1, mon_act: '5', tue_act: '3', ...}, ...] }
-// Phase 29: Stylish Excel Export
-const ExcelJS = require('exceljs');
+    app.get('/api/plans-consolidated/:weekId', async (req, res) => {
+        const { weekId } = req.params;
+        try {
+            const sql = `
+                SELECT p.* FROM plans p
+                INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest 
+                ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek
+            `;
+            const rows = await all(sql, [weekId]);
+            const processed = rows.map(row => row.weekId === weekId ? row : { ...row, id: undefined, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });
+            const consolidatedData = [];
+            ALL_EQUIPMENTS.forEach(eq => {
+                processed.filter(d => d.equipment.trim() === eq.trim()).forEach(row => consolidatedData.push(row));
+            });
+            res.json({ success: true, data: consolidatedData });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
 
-function getTextWidth(text) {
-    if (text === null || text === undefined) return 0;
-    const str = String(text);
-    let width = 0;
-    for (let i = 0; i < str.length; i++) {
-        const charCode = str.charCodeAt(i);
-        if (charCode > 255) width += 2; // Korean/Unicode
-        else width += 1;
+    app.get('/api/holidays-all/:weekId', async (req, res) => {
+        const { weekId } = req.params;
+        try {
+            const rows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
+            const map = {};
+            rows.forEach(r => map[r.equipment] = r);
+            res.json({ success: true, data: map });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.post('/api/holidays', async (req, res) => {
+        const { equipment, weekId, holidays } = req.body;
+        const { mon, tue, wed, thu, fri, sat, sun } = holidays;
+        try {
+            await run(`INSERT INTO equipment_holidays (equipment, weekId, mon, tue, wed, thu, fri, sat, sun) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(equipment, weekId) DO UPDATE SET mon=excluded.mon, tue=excluded.tue, wed=excluded.wed, thu=excluded.thu, fri=excluded.fri, sat=excluded.sat, sun=excluded.sun`, [equipment, weekId, mon, tue, wed, thu, fri, sat, sun]);
+            res.json({ success: true, message: 'Holidays updated.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.put('/api/plans-actuals', async (req, res) => {
+        const actuals = req.body.actuals || [];
+        if (actuals.length === 0) return res.json({ success: true, message: 'Nothing to update.' });
+        try {
+            const batch = actuals.map(a => ({
+                sql: `UPDATE plans SET mon_act = ?, tue_act = ?, wed_act = ?, thu_act = ?, fri_act = ?, sat_act = ?, sun_act = ? WHERE id = ?`,
+                args: [a.mon_act || "", a.tue_act || "", a.wed_act || "", a.thu_act || "", a.fri_act || "", a.sat_act || "", a.sun_act || "", a.id]
+            }));
+            await client.batch(batch, 'write');
+            await logActivity(req, '실적 입력', `${actuals.length}개 항목 실적 업데이트`);
+            res.json({ success: true, message: 'Actuals saved.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    function getTextWidth(text) {
+        if (!text) return 0;
+        const str = String(text);
+        let width = 0;
+        for (let i = 0; i < str.length; i++) width += str.charCodeAt(i) > 255 ? 2 : 1;
+        return width;
     }
-    return width;
+
+    app.get('/api/export-excel-styled/:weekId', async (req, res) => {
+        const { weekId } = req.params;
+        try {
+            const sql = `SELECT p.* FROM plans p INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek`;
+            const rows = await all(sql, [weekId]);
+            const holidayRows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
+            const hMap = {}; holidayRows.forEach(r => hMap[r.equipment] = r);
+            const data = [];
+            const processed = rows.map(row => row.weekId === weekId ? row : { ...row, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });
+            ALL_EQUIPMENTS.forEach(eq => processed.filter(d => d.equipment.trim() === eq.trim()).forEach(row => data.push(row)));
+
+            if (data.length === 0) return res.status(404).json({ success: false, message: 'No data' });
+
+            const workbook = new ExcelJS.Workbook();
+            const ws = workbook.addWorksheet('통합계획');
+            ws.pageSetup = { fitToPage: true, fitToWidth: 1, orientation: 'landscape', margins: { left: 0.25, right: 0.25, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 } };
+
+            const year = parseInt(weekId.substring(0, 4));
+            const week = parseInt(weekId.substring(6, 8));
+            const simpleDate = new Date(year, 0, 1 + (week - 1) * 7);
+            const dow = simpleDate.getDay();
+            const ISOweekStart = new Date(simpleDate);
+            if (dow <= 4) ISOweekStart.setDate(simpleDate.getDate() - simpleDate.getDay() + 1);
+            else ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
+            ISOweekStart.setDate(ISOweekStart.getDate() - 1);
+
+            const korDays = ['일', '월', '화', '수', '목', '금', '토'];
+            const headers = ['NO', '담당자', '기종', '품명', '품번', '구분'];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(ISOweekStart); d.setDate(ISOweekStart.getDate() + i);
+                headers.push(`${korDays[i]}(${d.getMonth() + 1}/${d.getDate()})`);
+            }
+
+            const hRow = ws.addRow(headers);
+            hRow.eachCell(c => {
+                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+                c.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                c.alignment = { horizontal: 'center', vertical: 'middle' };
+                c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+            });
+
+            ws.columns = headers.map((h, i) => ({ width: i < 5 ? (i === 3 || i === 4 ? 25 : 12) : 10 }));
+
+            const groups = {}; data.forEach(p => { if (!groups[p.equipment]) groups[p.equipment] = []; groups[p.equipment].push(p); });
+            const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+            for (const [eq, plans] of Object.entries(groups)) {
+                const activePlans = plans.filter(p => dayKeys.some(d => p[d]));
+                if (activePlans.length === 0) continue;
+
+                const eqRow = ws.addRow([`[${eq}]`]);
+                ws.mergeCells(eqRow.number, 1, eqRow.number, 13);
+                eqRow.eachCell(c => {
+                    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+                    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                });
+
+                const h = hMap[eq] || {};
+                let totalPlan = 0; let activeDays = dayKeys.filter(d => h[d] !== 1).length;
+                const dailySums = {}; dayKeys.forEach(d => dailySums[d] = 0);
+
+                activePlans.forEach((p, idx) => {
+                    const planVals = [idx + 1, p.manager, p.model, p.partName, p.partNo, '계획'];
+                    const actVals = ['', '', '', '', '', '실적'];
+                    dayKeys.forEach(d => {
+                        const isHoliday = h[d] === 1;
+                        const pVal = isHoliday ? 'X' : (p[d] || '');
+                        planVals.push(pVal);
+                        actVals.push(isHoliday ? 'X' : (p[`${d}_act`] || ''));
+                        if (!isHoliday && pVal !== '') { 
+                            const v = parseInt(pVal) || 0; 
+                            dailySums[d] += v; totalPlan += v; 
+                        }
+                    });
+                    const r1 = ws.addRow(planVals); const r2 = ws.addRow(actVals);
+                    [r1, r2].forEach(row => row.eachCell((c, col) => {
+                        c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+                        c.alignment = { horizontal: 'center', vertical: 'middle' };
+                        if (col === 6) {
+                            c.font = { bold: true };
+                            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c.value === '계획' ? 'FFE6F0FF' : 'FFF2F2F2' } };
+                        }
+                    }));
+                });
+
+                const avg = activeDays > 0 ? totalPlan / activeDays : 0;
+                const totRow = ws.addRow(['', '', '', '', '', '일별 합계', ...dayKeys.map(d => dailySums[d] || '')]);
+                totRow.eachCell((c, col) => {
+                    if (col >= 6) {
+                        c.font = { bold: true };
+                        if (col > 6) {
+                            const sum = dailySums[dayKeys[col - 7]];
+                            if (sum > avg && sum > 0) c.font = { bold: true, color: { argb: 'FFFF0000' } };
+                        }
+                        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+                        c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'medium' }, right: { style: 'thin' } };
+                        c.alignment = { horizontal: 'center', vertical: 'middle' };
+                    }
+                });
+            }
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=Integrated_Plan_${weekId}.xlsx`);
+            await workbook.xlsx.write(res);
+            res.end();
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    const HOST = '0.0.0.0'; 
+    if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+        const server = app.listen(PORT, HOST, () => {
+            console.log(`\n=========================================`);
+            console.log(`SERVER RUNNING ON PORT: ${PORT}`);
+            console.log(`=========================================\n`);
+        });
+
+        server.on('error', (err) => {
+            fs.appendFileSync('fatal_error.txt', `[SERVER_ERROR] ${new Date().toISOString()}: ${err.stack || err.message}\n`);
+        });
+    }
+
+} catch (e) {
+    fs.appendFileSync('fatal_error.txt', `[FATAL_OUTER] ${new Date().toISOString()}: ${e.stack || e.message}\n`);
+    process.exit(1);
 }
 
-app.get('/api/export-excel-styled/:weekId', async (req, res) => {
-    const { weekId } = req.params;
-    console.log(`[GET] /api/export-excel-styled/${weekId} requested`);
-
-    try {
-        // Fetch data (reuse optimized SQL logic)
-        const sql = `
-            SELECT p.* 
-            FROM plans p
-            INNER JOIN (
-                SELECT equipment, MAX(weekId) as maxWeek
-                FROM plans
-                WHERE weekId <= ?
-                GROUP BY equipment
-            ) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek
-        `;
-
-        db.all(sql, [weekId], async (err, rows) => {
-            if (err) return res.status(500).json({ success: false, error: err.message });
-
-            db.all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId], async (err, holidayRows) => {
-                if (err) return res.status(500).json({ success: false, error: err.message });
-
-                const holidaysMap = {};
-                holidayRows.forEach(r => holidaysMap[r.equipment] = r);
-
-                const data = [];
-                // Process the rows to clear carryover data fields
-                const processedData = rows.map(row => {
-                    if (row.weekId === weekId) {
-                        return row;
-                    } else {
-                        return {
-                            ...row, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: ""
-                        };
-                    }
-                });
-
-                // Re-apply ALL_EQUIPMENTS ordering
-                ALL_EQUIPMENTS.forEach(eq => {
-                    const machineData = processedData.filter(d => d.equipment.trim() === eq.trim());
-                    machineData.forEach(row => data.push(row));
-                });
-
-                if (data.length === 0) {
-                    return res.status(404).json({ success: false, message: 'No data to export' });
-                }
-
-                // Create Workbook
-                const workbook = new ExcelJS.Workbook();
-                const worksheet = workbook.addWorksheet('통합계획');
-
-                // Page Setup for Print
-                worksheet.pageSetup.fitToPage = true;
-                worksheet.pageSetup.fitToWidth = 1;
-                worksheet.pageSetup.fitToHeight = 0; // 0 means it will scroll pages vertically as needed
-                worksheet.pageSetup.orientation = 'landscape';
-                worksheet.pageSetup.margins = {
-                    left: 0.25, right: 0.25,
-                    top: 0.75, bottom: 0.75,
-                    header: 0.3, footer: 0.3
-                };
-
-                // Header Row Configuration
-                const year = parseInt(weekId.substring(0, 4));
-                const week = parseInt(weekId.substring(6, 8));
-
-                // Calculate ISO Monday date
-                const simpleDate = new Date(year, 0, 1 + (week - 1) * 7);
-                const dow = simpleDate.getDay();
-                const ISOweekStart = new Date(simpleDate);
-                if (dow <= 4) ISOweekStart.setDate(simpleDate.getDate() - simpleDate.getDay() + 1);
-                else ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
-
-                // Shift back 1 day to make Sunday the start of our customized week
-                ISOweekStart.setDate(ISOweekStart.getDate() - 1);
-
-                const korDays = ['일', '월', '화', '수', '목', '금', '토'];
-                const headerTitles = ['NO', '담당자', '기종', '품명', '품번', '구분'];
-                for (let i = 0; i < 7; i++) {
-                    const d = new Date(ISOweekStart);
-                    d.setDate(ISOweekStart.getDate() + i);
-                    headerTitles.push(`${korDays[i]}(${d.getMonth() + 1}/${d.getDate()})`);
-                }
-
-                const headerRow = worksheet.addRow(headerTitles);
-
-                // Header Styling
-                headerRow.eachCell((cell) => {
-                    cell.fill = {
-                        type: 'pattern',
-                        pattern: 'solid',
-                        fgColor: { argb: 'FF1F4E78' } // Dark Blue
-                    };
-                    cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
-                    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                    cell.border = {
-                        top: { style: 'thin' },
-                        left: { style: 'thin' },
-                        bottom: { style: 'thin' },
-                        right: { style: 'thin' }
-                    };
-                });
-
-                // Set column widths
-                worksheet.columns = [
-                    { width: 5 }, { width: 12 }, { width: 15 }, { width: 25 }, { width: 25 }, { width: 10 },
-                    { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }
-                ];
-
-                // Group and Fill Data
-                const groups = {};
-                data.forEach(p => {
-                    if (!groups[p.equipment]) groups[p.equipment] = [];
-                    groups[p.equipment].push(p);
-                });
-
-                const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-
-                for (const [eq, plans] of Object.entries(groups)) {
-                    const activePlans = plans.filter(p => days.some(d => p[d] && String(p[d]).trim() !== ''));
-                    if (activePlans.length === 0) continue;
-
-                    // Equipment Header Row
-                    const eqHeader = worksheet.addRow([`[${eq}]`]);
-                    eqHeader.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-                    eqHeader.alignment = { horizontal: 'left', vertical: 'middle' };
-                    worksheet.mergeCells(eqHeader.number, 1, eqHeader.number, 13);
-
-                    // Style ONLY cells 1 through 13 (A to M)
-                    for (let c = 1; c <= 13; c++) {
-                        const cell = eqHeader.getCell(c);
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
-                        cell.border = { top: { style: 'medium' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-                    }
-
-                    const h = holidaysMap[eq] || {};
-                    const dailySums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
-                    let totalWeeklyPlan = 0;
-                    let activeDaysCount = 0;
-
-                    days.forEach(d => {
-                        if (h[d] !== 1) activeDaysCount++;
-                    });
-
-                    activePlans.forEach((plan, idx) => {
-                        // Plan Row
-                        const pRowValues = [idx + 1, plan.manager, plan.model, plan.partName, plan.partNo, '계획'];
-                        days.forEach(d => {
-                            const val = h[d] === 1 ? 'X' : (plan[d] || '');
-                            pRowValues.push(val);
-                            if (val !== 'X' && val !== '') {
-                                const parsedVal = parseInt(val) || 0;
-                                dailySums[d] += parsedVal;
-                                totalWeeklyPlan += parsedVal;
-                            }
-                        });
-                        const pRow = worksheet.addRow(pRowValues);
-
-                        // Actual Row
-                        const aRowValues = ['', '', '', '', '', '실적'];
-                        days.forEach(d => {
-                            aRowValues.push(h[d] === 1 ? 'X' : (plan[`${d}_act`] || ''));
-                        });
-                        const aRow = worksheet.addRow(aRowValues);
-
-                        // Style Plan/Actual Rows
-                        [pRow, aRow].forEach(row => {
-                            row.eachCell((cell, colNum) => {
-                                cell.border = {
-                                    top: { style: 'thin' },
-                                    left: { style: 'thin' },
-                                    bottom: { style: 'thin' },
-                                    right: { style: 'thin' }
-                                };
-                                cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                                if (colNum === 6) { // '구분' column
-                                    cell.font = { bold: true };
-                                    if (cell.value === '계획') cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F0FF' } }; // Light Blue
-                                    else cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }; // light Gray
-                                }
-                                // Highlight completed cells
-                                if (colNum > 6) {
-                                    const day = days[colNum - 7];
-                                    const pVal = parseInt(plan[day]) || 0;
-                                    const aVal = parseInt(plan[`${day}_act`]) || 0;
-                                    if (aVal >= pVal && pVal > 0) {
-                                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }; // Yellow
-                                    }
-                                }
-                            });
-                        });
-                    });
-
-                    const averagePerDay = activeDaysCount > 0 ? (totalWeeklyPlan / activeDaysCount) : 0;
-
-                    // Totals Row
-                    const tRowValues = ['', '', '', '', '', '일별 계획 합계'];
-                    days.forEach(d => tRowValues.push(dailySums[d] || ''));
-                    const tRow = worksheet.addRow(tRowValues);
-                    tRow.eachCell((cell, colNum) => {
-                        cell.font = { bold: true };
-
-                        // Highlight Overloaded Days in Red
-                        if (colNum > 6) { // Past '구분' column
-                            const dayIndex = colNum - 7;
-                            const d = days[dayIndex];
-                            const sum = dailySums[d];
-                            if (sum > averagePerDay && sum > 0) {
-                                cell.font = { bold: true, color: { argb: 'FFFF0000' } }; // Pure Red
-                            }
-                        }
-
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } }; // Deep Gray
-                        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'medium' }, right: { style: 'thin' } };
-                        cell.alignment = { horizontal: 'center', vertical: 'middle' };
-                    });
-                }
-
-                // Dynamic Column Width Adjustment
-                worksheet.columns.forEach((column, i) => {
-                    let maxColumnLength = 0;
-                    column.eachCell({ includeEmpty: true }, (cell) => {
-                        const cellLength = getTextWidth(cell.value);
-                        if (cellLength > maxColumnLength) {
-                            maxColumnLength = cellLength;
-                        }
-                    });
-                    // Set width with minimum and slight padding
-                    column.width = Math.max(8, maxColumnLength + 2);
-                });
-
-                // Send response
-                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-                res.setHeader('Content-Disposition', `attachment; filename=Integrated_Plan_${weekId}.xlsx`);
-                await workbook.xlsx.write(res);
-                res.end();
-            });
-        });
-    } catch (err) {
-        console.error('Export styling failed:', err);
-        res.status(500).json({ success: false, error: err.message });
-    }
+process.on('uncaughtException', (err) => {
+    fs.appendFileSync('fatal_error.txt', `[UNCAUGHT] ${new Date().toISOString()}: ${err.stack || err.message}\n`);
+    process.exit(1);
 });
 
-app.put('/api/plans-actuals', (req, res) => {
-    const actuals = req.body.actuals || [];
-    if (actuals.length === 0) {
-        return res.json({ success: true, message: 'Nothing to update.' });
-    }
-
-    db.serialize(() => {
-        db.run(`BEGIN TRANSACTION;`);
-        const stmt = db.prepare(`UPDATE plans SET 
-            mon_act = ?, tue_act = ?, wed_act = ?, thu_act = ?, 
-            fri_act = ?, sat_act = ?, sun_act = ? 
-            WHERE id = ?`);
-
-        actuals.forEach(a => {
-            stmt.run([
-                a.mon_act || "", a.tue_act || "", a.wed_act || "", a.thu_act || "",
-                a.fri_act || "", a.sat_act || "", a.sun_act || "",
-                a.id
-            ]);
-        });
-
-        stmt.finalize((err) => {
-            if (err) {
-                db.run(`ROLLBACK;`);
-                return res.status(500).json({ success: false, error: err.message });
-            }
-            db.run(`COMMIT;`, (err) => {
-                if (err) {
-                    return res.status(500).json({ success: false, error: err.message });
-                }
-                res.json({ success: true, message: 'Actuals saved successfully.' });
-            });
-        });
-    });
+process.on('unhandledRejection', (reason, promise) => {
+    fs.appendFileSync('fatal_error.txt', `[UNHANDLED] ${new Date().toISOString()}: ${reason}\n`);
 });
 
-const HOST = '0.0.0.0'; // Allow external access
-app.listen(PORT, HOST, () => {
-    console.log(`Server is running on http://${HOST}:${PORT}`);
-    console.log(`Local Access: http://localhost:${PORT}`);
-    console.log(`Network Access: http://10.33.56.86:${PORT}`);
-});
+module.exports = app;

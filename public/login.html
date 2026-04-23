@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인 | 주간 정삭 계획 시스템</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1E3A8A 0%, #1E40AF 100%);
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-card h2 {
+            font-size: 1.75rem;
+            color: #1E3A8A;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .login-card p {
+            color: #64748B;
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #1E293B;
+        }
+
+        .login-card input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            border: 1px solid #E2E8F0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.2s;
+            background: #F8FAFC;
+        }
+
+        .login-card input:focus {
+            outline: none;
+            border-color: #1E3A8A;
+            background: #FFF;
+            box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.1);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 1rem;
+            background: #1E3A8A;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-top: 1rem;
+        }
+
+        .login-btn:hover {
+            background: #1E40AF;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(30, 58, 138, 0.3);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .error-msg {
+            color: #EF4444;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+            height: 20px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .error-msg.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>보안 로그인</h2>
+        <p>계획 시스템 접속을 위해 암호를 입력하세요.</p>
+        
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="username">사용자 이름</label>
+                <input type="text" id="username" placeholder="이름 입력" required autofocus>
+            </div>
+            
+            <div class="input-group">
+                <label for="password">관리자 암호</label>
+                <input type="password" id="password" placeholder="비밀번호 입력" required>
+            </div>
+            
+            <button type="submit" class="login-btn">접속하기</button>
+            <div id="errorMsg" class="error-msg">암호가 올바르지 않습니다.</div>
+        </form>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const errorMsg = document.getElementById('errorMsg');
+
+        loginForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const username = usernameInput.value;
+            const password = passwordInput.value;
+            
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const json = await res.json();
+                
+                if (json.success) {
+                    // Store simple token in localStorage
+                    localStorage.setItem('mps_auth_token', json.token);
+                    localStorage.setItem('mps_user_name', username);
+                    window.location.href = 'index.html';
+                } else {
+                    errorMsg.classList.add('visible');
+                    passwordInput.value = '';
+                }
+            } catch (err) {
+                console.error(err);
+                alert('서버 응답이 없습니다.');
+            }
+        };
+
+        // Hide error message on input
+        [usernameInput, passwordInput].forEach(el => {
+            el.oninput = () => {
+                errorMsg.classList.remove('visible');
+            };
+        });
+    </script>
+</body>
+</html>

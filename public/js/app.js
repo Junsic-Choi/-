@@ -4,6 +4,127 @@ let currentEquipment = null;
 let currentWeekId = getInitialWeekId();
 let currentHolidays = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
 
+// Phase: Authentication Check
+function checkAuth() {
+    const token = localStorage.getItem('mps_auth_token');
+    if (!token && !window.location.href.includes('login.html')) {
+        window.location.href = 'login.html';
+    }
+    return token;
+}
+
+// Initial check
+checkAuth();
+
+function logout() {
+    localStorage.removeItem('mps_auth_token');
+    window.location.href = 'login.html';
+}
+
+async function viewLogs() {
+    const modal = document.getElementById('logModal');
+    const tbody = document.getElementById('logTableBody');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">로딩 중...</td></tr>';
+    modal.classList.remove('hidden');
+    
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/logs`);
+        if (!res) return;
+        const json = await res.json();
+        
+        if (json.success) {
+            tbody.innerHTML = '';
+            if (json.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">기록된 로그가 없습니다.</td></tr>';
+            } else {
+                json.data.forEach(log => {
+                    const tr = document.createElement('tr');
+                    // Handle both numeric and legacy string timestamps
+                    const timestamp = isNaN(log.timestamp) ? log.timestamp : Number(log.timestamp);
+                    const date = new Date(timestamp).toLocaleString('ko-KR');
+                    tr.innerHTML = `
+                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${date}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${log.username}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${log.ip}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">
+                            <span style="color: ${log.status === 'SUCCESS' ? '#10B981' : '#EF4444'}; font-weight: 600;">${log.status}</span>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+    } catch (err) {
+        console.error("Failed to fetch logs", err);
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">로그를 불러오는데 실패했습니다.</td></tr>';
+    }
+}
+
+function closeLogModal() {
+    document.getElementById('logModal').classList.add('hidden');
+}
+
+async function viewActivityLogs() {
+    const modal = document.getElementById('activityLogModal');
+    const tbody = document.getElementById('activityLogTableBody');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">로딩 중...</td></tr>';
+    modal.classList.remove('hidden');
+    
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/activity-logs`);
+        if (!res) return;
+        const json = await res.json();
+        
+        if (json.success) {
+            tbody.innerHTML = '';
+            if (json.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">기록된 활동 로그가 없습니다.</td></tr>';
+            } else {
+                json.data.forEach(log => {
+                    const tr = document.createElement('tr');
+                    const timestamp = isNaN(log.timestamp) ? log.timestamp : Number(log.timestamp);
+                    const date = new Date(timestamp).toLocaleString('ko-KR');
+                    tr.innerHTML = `
+                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${date}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; font-weight: bold;">${log.username}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; color: #1E3A8A;">${log.action}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${log.details}</td>
+                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${log.ip}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+    } catch (err) {
+        console.error("Failed to fetch activity logs", err);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">로그를 불러오는데 실패했습니다.</td></tr>';
+    }
+}
+
+function closeActivityLogModal() {
+    document.getElementById('activityLogModal').classList.add('hidden');
+}
+
+async function fetchWithAuth(url, options = {}) {
+    const token = localStorage.getItem('mps_auth_token');
+    const username = localStorage.getItem('mps_user_name') || 'unknown';
+    const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+        'X-User-Name': encodeURIComponent(username)
+    };
+    
+    const response = await fetch(url, { ...options, headers });
+    
+    if (response.status === 401) {
+        localStorage.removeItem('mps_auth_token');
+        window.location.href = 'login.html';
+        return null;
+    }
+    
+    return response;
+}
+
 // DOM Elements
 const equipmentTabs = document.getElementById('equipmentTabs');
 const weekPicker = document.getElementById('weekPicker');
@@ -70,7 +191,7 @@ let managerEquipmentMap = {};
 // Fetch Equipments List
 async function fetchEquipments() {
     try {
-        const res = await fetch(`${API_BASE}/equipments`);
+        const res = await fetchWithAuth(`${API_BASE}/equipments`);
         const json = await res.json();
         if (json.success) {
             equipments = json.data;
@@ -89,7 +210,7 @@ async function refreshManagerFilterAndTabs() {
 
     try {
         // 1. Fetch ALL managers globally to ensure dropdown is never empty
-        const mRes = await fetch(`${API_BASE}/managers`);
+        const mRes = await fetchWithAuth(`${API_BASE}/managers`);
         if (mRes.ok) {
             const mJson = await mRes.json();
             if (mJson.success && Array.isArray(mJson.data)) {
@@ -100,7 +221,7 @@ async function refreshManagerFilterAndTabs() {
         }
 
         // 2. Fetch current week for mapping (enables equipment filtering)
-        const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+        const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         if (res.ok) {
             const json = await res.json();
             if (json.success && Array.isArray(json.data)) {
@@ -166,7 +287,7 @@ function selectEquipment(equipment) {
 // Phase 18: Holiday Management Logic
 async function fetchHolidays(equipment) {
     try {
-        const res = await fetch(`${API_BASE}/holidays/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
+        const res = await fetchWithAuth(`${API_BASE}/holidays/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
         if (json.success && json.data) {
             currentHolidays = json.data;
@@ -195,7 +316,7 @@ async function toggleHoliday(day) {
     currentHolidays[day] = currentHolidays[day] === 1 ? 0 : 1;
     renderHolidayUI();
     try {
-        await fetch(`${API_BASE}/holidays`, {
+        await fetchWithAuth(`${API_BASE}/holidays`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -235,7 +356,7 @@ async function loadPlans(equipment) {
     await fetchHolidays(equipment);
 
     try {
-        const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
+        const res = await fetchWithAuth(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
         planTableBody.innerHTML = '';
 
@@ -348,7 +469,10 @@ function createRow(index, data = {}) {
         <td style="width: 8%;"><input type="text" name="manager" value="${data.manager || ''}" placeholder="담당자"></td>
         <td style="width: 12%;"><input type="text" name="model" value="${data.model || ''}" placeholder="기종"></td>
         <td style="width: 22%;"><input type="text" name="partName" value="${data.partName || ''}" placeholder="품명" style="width: 100%;"></td>
-        <td style="width: 22%;"><input type="text" name="partNo" value="${data.partNo || ''}" placeholder="품번" style="width: 100%;"></td>
+        <td style="width: 22%;">
+            <input type="text" name="partNo" value="${data.partNo || ''}" placeholder="품번" style="width: 100%;">
+            ${data.urgentStatus ? `<div class="urgent-label">${data.urgentStatus}</div>` : ''}
+        </td>
         <td style="width: 4%;"><input type="text" name="sun" value="${data.sun || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
         <td style="width: 4%;"><input type="text" name="mon" value="${data.mon || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
         <td style="width: 4%;"><input type="text" name="tue" value="${data.tue || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
@@ -389,7 +513,7 @@ btnSave.addEventListener('click', async () => {
     });
 
     try {
-        const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(currentEquipment)}/${encodeURIComponent(currentWeekId)}`, {
+        const res = await fetchWithAuth(`${API_BASE}/plans/${encodeURIComponent(currentEquipment)}/${encodeURIComponent(currentWeekId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ plans: plansToSave })
@@ -411,11 +535,11 @@ btnSave.addEventListener('click', async () => {
 async function loadConsolidatedPlans() {
     consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
     try {
-        const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+        const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
 
         // Phase 18: Fetch all holidays for this week
-        const hRes = await fetch(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`);
+        const hRes = await fetchWithAuth(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`);
         const hJson = await hRes.json();
         const holidaysMap = hJson.data || {}; // { equipment: { mon: 1, ... } }
 
@@ -465,7 +589,10 @@ async function loadConsolidatedPlans() {
                         <td>${plan.manager}</td>
                         <td>${plan.model}</td>
                         <td>${plan.partName}</td>
-                        <td>${plan.partNo}</td>
+                        <td class="part-no-cell" onclick="showUrgentMenu(event, '${plan.id}', '${plan.urgentStatus || ''}')">
+                            <span class="part-no-text">${plan.partNo}</span>
+                            ${plan.urgentStatus ? `<div class="urgent-label">${plan.urgentStatus}</div>` : ''}
+                        </td>
                         <td class="type-cell grid-cell">
                             <div class="stats-row plan-row center">계획</div>
                             <div class="stats-row act-row center">실적</div>
@@ -587,7 +714,7 @@ document.getElementById('saveActualsBtn').addEventListener('click', async () => 
     }
 
     try {
-        const res = await fetch(`${API_BASE}/plans-actuals`, {
+        const res = await fetchWithAuth(`${API_BASE}/plans-actuals`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ actuals: actualsArray })
@@ -605,6 +732,81 @@ document.getElementById('saveActualsBtn').addEventListener('click', async () => 
         alert('네트워크 오류가 발생했습니다.');
     }
 });
+
+// Phase: Urgent Status Management
+function showUrgentMenu(event, planId, currentStatus) {
+    event.stopPropagation();
+    
+    // Remove existing menus
+    const existing = document.querySelector('.urgent-selection-menu');
+    if (existing) existing.remove();
+
+    const menu = document.createElement('div');
+    menu.className = 'urgent-selection-menu';
+    
+    const options = [
+        { label: '지정 안 함 (해제)', value: '' },
+        { label: '*황삭 완료 후 바로 정삭 필요', value: '*황삭 완료 후 바로 정삭 필요' }
+    ];
+
+    options.forEach(opt => {
+        const item = document.createElement('div');
+        item.className = 'urgent-menu-item' + (currentStatus === opt.value ? ' active' : '');
+        if (opt.value === '') item.classList.add('danger');
+        item.textContent = opt.label;
+        item.onclick = async () => {
+            await updateUrgentStatus(planId, opt.value);
+            menu.remove();
+        };
+        menu.appendChild(item);
+    });
+
+    document.body.appendChild(menu);
+    
+    // Position menu near the click
+    const rect = event.currentTarget.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.top = (rect.bottom + window.scrollY) + 'px';
+
+    // Close on click outside
+    const closer = () => {
+        menu.remove();
+        document.removeEventListener('click', closer);
+    };
+    setTimeout(() => document.addEventListener('click', closer), 10);
+}
+
+async function updateUrgentStatus(planId, status) {
+    if (!planId || planId === 'undefined' || planId === 'null') {
+        alert('이 항목은 아직 현재 주차에 저장되지 않았습니다.\n계획 또는 실적을 먼저 저장한 후 다시 시도해 주세요.');
+        return;
+    }
+
+    try {
+        console.log(`Sending urgent update for ID ${planId} with status: ${status}`);
+        const res = await fetchWithAuth(`${API_BASE}/urgent-status/${planId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urgentStatus: status })
+        });
+        
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Server responded with ${res.status}: ${errorText}`);
+        }
+
+        const json = await res.json();
+        if (json.success) {
+            showToast('✅ 우선순위 정보가 업데이트되었습니다.');
+            loadConsolidatedPlans(); 
+        } else {
+            alert('업데이트 실패: ' + json.error);
+        }
+    } catch (err) {
+        console.error("Urgent update error:", err);
+        alert(`업데이트 중 오류가 발생했습니다.\n상태: ${err.message}`);
+    }
+}
 
 // Helpers
 function highlightPlan(value) {

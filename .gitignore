@@ -1,6 +1,17 @@
 node_modules/
 server/database.sqlite
 .DS_Store
+# Migration & Logs
+scripts/migrate_*.js
+scripts/test_*.js
+scripts/check_turso.js
+migration_log*.txt
+resumable_log*.txt
+test_results*.txt
+test_urls_log*.txt
+fatal_error.txt
+startup_log.txt
+npm_install_log.txt
 *.log
 .env
 .agents/
