@@ -102,6 +102,27 @@ try {
         res.json({ success: true, data: rows.map(r => r.manager) });
     });
 
+    app.get('/api/holidays/:equipment/:weekId', async (req, res) => {
+        const { equipment, weekId } = req.params;
+        const row = await get(`SELECT * FROM equipment_holidays WHERE equipment = ? AND weekId = ?`, [equipment, weekId]);
+        res.json({ success: true, data: row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 } });
+    });
+
+    app.get('/api/holidays-all/:weekId', async (req, res) => {
+        const { weekId } = req.params;
+        const rows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
+        const map = {};
+        rows.forEach(r => map[r.equipment] = r);
+        res.json({ success: true, data: map });
+    });
+
+    app.post('/api/holidays', async (req, res) => {
+        const { equipment, weekId, holidays } = req.body;
+        const { mon, tue, wed, thu, fri, sat, sun } = holidays;
+        await run(`INSERT INTO equipment_holidays (equipment, weekId, mon, tue, wed, thu, fri, sat, sun) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(equipment, weekId) DO UPDATE SET mon=excluded.mon, tue=excluded.tue, wed=excluded.wed, thu=excluded.thu, fri=excluded.fri, sat=excluded.sat, sun=excluded.sun`, [equipment, weekId, mon, tue, wed, thu, fri, sat, sun]);
+        res.json({ success: true });
+    });
+
     app.get('/api/plans/:equipment/:weekId', async (req, res) => {
         const { equipment, weekId } = req.params;
         const rows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? ORDER BY id ASC`, [equipment, weekId]);
