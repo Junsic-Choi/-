@@ -162,19 +162,123 @@ try {
         res.json({ success: true, data: consolidatedData });
     });
 
+    function getTextWidth(text) {
+        if (!text) return 0;
+        const str = String(text);
+        let width = 0;
+        for (let i = 0; i < str.length; i++) width += str.charCodeAt(i) > 255 ? 2 : 1;
+        return width;
+    }
+
     app.get('/api/export-excel-styled/:weekId', async (req, res) => {
         const { weekId } = req.params;
-        const sql = `SELECT p.* FROM plans p INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek`;
-        const rows = await all(sql, [weekId]);
-        const data = rows.map(row => row.weekId === weekId ? row : { ...row, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });
-        const workbook = new ExcelJS.Workbook();
-        const ws = workbook.addWorksheet('Plan');
-        ws.columns = [{header:'EQ', key:'equipment'}, {header:'Model', key:'model'}, {header:'Part', key:'partName'}, {header:'Mon', key:'mon'}, {header:'Tue', key:'tue'}, {header:'Wed', key:'wed'}, {header:'Thu', key:'thu'}, {header:'Fri', key:'fri'}, {header:'Sat', key:'sat'}, {header:'Sun', key:'sun'}];
-        data.forEach(d => ws.addRow(d));
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=Plan_${weekId}.xlsx`);
-        await workbook.xlsx.write(res);
-        res.end();
+        try {
+            const sql = `SELECT p.* FROM plans p INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek`;
+            const rows = await all(sql, [weekId]);
+            const holidayRows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
+            const hMap = {}; holidayRows.forEach(r => hMap[r.equipment] = r);
+            const data = [];
+            const processed = rows.map(row => row.weekId === weekId ? row : { ...row, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });
+            ALL_EQUIPMENTS.forEach(eq => processed.filter(d => d.equipment.trim() === eq.trim()).forEach(row => data.push(row)));
+
+            if (data.length === 0) return res.status(404).json({ success: false, message: '데이터가 없습니다.' });
+
+            const workbook = new ExcelJS.Workbook();
+            const ws = workbook.addWorksheet('통합계획');
+            ws.pageSetup = { fitToPage: true, fitToWidth: 1, orientation: 'landscape', margins: { left: 0.25, right: 0.25, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 } };
+
+            const year = parseInt(weekId.substring(0, 4));
+            const week = parseInt(weekId.substring(6, 8));
+            const simpleDate = new Date(year, 0, 1 + (week - 1) * 7);
+            const dow = simpleDate.getDay();
+            const ISOweekStart = new Date(simpleDate);
+            if (dow <= 4) ISOweekStart.setDate(simpleDate.getDate() - simpleDate.getDay() + 1);
+            else ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
+            ISOweekStart.setDate(ISOweekStart.getDate() - 1);
+
+            const korDays = ['일', '월', '화', '수', '목', '금', '토'];
+            const headers = ['NO', '담당자', '기종', '품명', '품번', '구분'];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(ISOweekStart); d.setDate(ISOweekStart.getDate() + i);
+                headers.push(`${korDays[i]}(${d.getMonth() + 1}/${d.getDate()})`);
+            }
+
+            const hRow = ws.addRow(headers);
+            hRow.eachCell(c => {
+                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+                c.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                c.alignment = { horizontal: 'center', vertical: 'middle' };
+                c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+            });
+
+            ws.columns = headers.map((h, i) => ({ width: i < 5 ? (i === 3 || i === 4 ? 25 : 12) : 10 }));
+
+            const groups = {}; data.forEach(p => { if (!groups[p.equipment]) groups[p.equipment] = []; groups[p.equipment].push(p); });
+            const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+            for (const [eq, plans] of Object.entries(groups)) {
+                const activePlans = plans.filter(p => dayKeys.some(d => p[d] || p[`${d}_act`]));
+                if (activePlans.length === 0) continue;
+
+                const eqRow = ws.addRow([`[${eq}]`]);
+                ws.mergeCells(eqRow.number, 1, eqRow.number, 13);
+                eqRow.eachCell(c => {
+                    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
+                    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                });
+
+                const h = hMap[eq] || {};
+                let totalPlan = 0; let activeDays = dayKeys.filter(d => h[d] !== 1).length;
+                const dailySums = {}; dayKeys.forEach(d => dailySums[d] = 0);
+
+                activePlans.forEach((p, idx) => {
+                    const planVals = [idx + 1, p.manager, p.model, p.partName, p.partNo, '계획'];
+                    const actVals = ['', '', '', '', '', '실적'];
+                    dayKeys.forEach(d => {
+                        const isHoliday = h[d] === 1;
+                        const pVal = isHoliday ? 'X' : (p[d] || '');
+                        planVals.push(pVal);
+                        actVals.push(isHoliday ? 'X' : (p[`${d}_act`] || ''));
+                        if (!isHoliday && pVal !== '') { 
+                            const v = parseInt(pVal) || 0; 
+                            dailySums[d] += v; totalPlan += v; 
+                        }
+                    });
+                    const r1 = ws.addRow(planVals); const r2 = ws.addRow(actVals);
+                    [r1, r2].forEach(row => row.eachCell((c, col) => {
+                        c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+                        c.alignment = { horizontal: 'center', vertical: 'middle' };
+                        if (col === 6) {
+                            c.font = { bold: true };
+                            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c.value === '계획' ? 'FFE6F0FF' : 'FFF2F2F2' } };
+                        }
+                    }));
+                });
+
+                const avg = activeDays > 0 ? totalPlan / activeDays : 0;
+                const totRow = ws.addRow(['', '', '', '', '', '일별 합계', ...dayKeys.map(d => dailySums[d] || '')]);
+                totRow.eachCell((c, col) => {
+                    if (col >= 6) {
+                        c.font = { bold: true };
+                        if (col > 6) {
+                            const sum = dailySums[dayKeys[col - 7]];
+                            if (sum > avg && sum > 0) c.font = { bold: true, color: { argb: 'FFFF0000' } };
+                        }
+                        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+                        c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'medium' }, right: { style: 'thin' } };
+                        c.alignment = { horizontal: 'center', vertical: 'middle' };
+                    }
+                });
+            }
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename=Integrated_Plan_${weekId}.xlsx`);
+            await workbook.xlsx.write(res);
+            res.end();
+        } catch (err) {
+            console.error('Excel export error:', err);
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
 } catch (err) {
