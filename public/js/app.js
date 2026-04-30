@@ -930,12 +930,37 @@ if (holidayToggles) {
     };
 }
 
-// 엑셀 추출 기능 (SheetJS 사용) - 기존 양식 참조 고도화
+// 엑셀 추출 기능 (SheetJS 사용) - 서버리스 환경 호환성 및 인증 헤더 대응
 async function exportToExcel() {
     try {
-        // Use the new server-side styled export
-        window.location.href = `${API_BASE}/export-excel-styled/${encodeURIComponent(currentWeekId)}`;
-        showToast('엑셀 스타일이 적용된 파일이 생성됩니다...');
+        showToast('엑셀 추출을 준비 중입니다...');
+        
+        // 1. 서버 사이드 스타일 엑셀 시도 (인증 헤더 포함)
+        const url = `${API_BASE}/export-excel-styled/${encodeURIComponent(currentWeekId)}`;
+        const response = await fetchWithAuth(url);
+        
+        // 2. 만약 서버에서 지원하지 않거나(501) 오류가 나면 프론트엔드 SheetJS로 백업
+        if (response && response.ok) {
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `Integrated_Plan_${currentWeekId}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(downloadUrl);
+            a.remove();
+            showToast('엑셀 파일이 다운로드 되었습니다.');
+        } else {
+            console.warn("Server-side export failed or not supported, falling back to SheetJS");
+            // SheetJS Backup
+            const table = document.getElementById('consolidatedTable');
+            if (!table) throw new Error("데이터 테이블을 찾을 수 없습니다.");
+            
+            const wb = XLSX.utils.table_to_book(table, { sheet: "통합계획" });
+            XLSX.writeFile(wb, `Integrated_Plan_${currentWeekId}.xlsx`);
+            showToast('엑셀 파일이 다운로드 되었습니다. (기본 양식)');
+        }
     } catch (err) {
         console.error('Export failed:', err);
         alert(`엑셀 추출 중 오류가 발생했습니다: ${err.message}`);
