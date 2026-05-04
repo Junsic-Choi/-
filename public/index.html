@@ -97,6 +97,25 @@
             font-size: 0.8rem;
             margin-top: 2px;
         }
+        .pagination-container button {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .pagination-container button.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .pagination-container button:hover:not(.active) {
+            background: #f1f5f9;
+        }
     </style>
 </head>
 
@@ -111,44 +130,46 @@
 
         <!-- Activity Log Modal -->
         <div id="activityLogModal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 20001; display: flex; align-items: center; justify-content: center;">
-            <div class="modal-content" style="background: white; padding: 2rem; border-radius: 12px; width: 95%; max-width: 1000px; max-height: 85vh; overflow-y: auto;">
+            <div class="modal-content" style="background: white; padding: 2rem; border-radius: 12px; width: 95%; max-width: 1100px; max-height: 90vh; position: relative; display: flex; flex-direction: column;">
+                <button onclick="closeActivityLogModal()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748B;">&times;</button>
                 <h3 style="margin-top: 0;">계획 수정/활동 로그</h3>
-                <div id="activityLogContent" style="margin-top: 1rem;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                        <thead style="background: #f1f5f9;">
+                <div id="activityLogContent" style="margin-top: 1rem; overflow-y: auto; flex-grow: 1;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed;">
+                        <thead style="background: #f1f5f9; position: sticky; top: 0; z-index: 10;">
                             <tr>
-                                <th style="padding: 0.5rem; border: 1px solid #ddd; width: 22%;">일시</th>
-                                <th style="padding: 0.5rem; border: 1px solid #ddd; width: 15%;">수정자</th>
-                                <th style="padding: 0.5rem; border: 1px solid #ddd; width: 18%;">작업</th>
-                                <th style="padding: 0.5rem; border: 1px solid #ddd; width: 35%;">상세 내용</th>
-                                <th style="padding: 0.5rem; border: 1px solid #ddd; width: 10%;">IP</th>
+                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 20%;">일시</th>
+                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 12%;">수정자</th>
+                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 15%;">작업</th>
+                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 43%;">상세 내용</th>
+                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 10%;">IP</th>
                             </tr>
                         </thead>
                         <tbody id="activityLogTableBody"></tbody>
                     </table>
                 </div>
-                <button onclick="closeActivityLogModal()" class="btn btn-secondary" style="margin-top: 1.5rem; width: 100%;">닫기</button>
+                <div id="activityLogPagination" class="pagination-container" style="margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem;"></div>
             </div>
         </div>
 
         <!-- Log Modal -->
         <div id="logModal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 20000; display: flex; align-items: center; justify-content: center;">
-            <div class="modal-content" style="background: white; padding: 2rem; border-radius: 12px; width: 95%; max-width: 900px; max-height: 85vh; overflow-y: auto;">
+            <div class="modal-content" style="background: white; padding: 2rem; border-radius: 12px; width: 95%; max-width: 900px; max-height: 85vh; position: relative; display: flex; flex-direction: column;">
+                <button onclick="closeLogModal()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748B;">&times;</button>
                 <h3 style="margin-top: 0;">시스템 접속 로그</h3>
-                <div id="logContent" style="margin-top: 1rem;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                        <thead style="background: #f1f5f9;">
+                <div id="logContent" style="margin-top: 1rem; overflow-y: auto; flex-grow: 1;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed;">
+                        <thead style="background: #f1f5f9; position: sticky; top: 0; z-index: 10;">
                             <tr>
-                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 30%;">일시</th>
+                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 35%;">일시</th>
                                 <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 20%;">사용자</th>
                                 <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 30%;">IP</th>
-                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 20%;">결과</th>
+                                <th style="padding: 0.8rem 0.5rem; border: 1px solid #ddd; width: 15%;">결과</th>
                             </tr>
                         </thead>
                         <tbody id="logTableBody"></tbody>
                     </table>
                 </div>
-                <button onclick="closeLogModal()" class="btn btn-secondary" style="margin-top: 1.5rem; width: 100%;">닫기</button>
+                <div id="logPagination" class="pagination-container" style="margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem;"></div>
             </div>
         </div>
             <div class="header-top">

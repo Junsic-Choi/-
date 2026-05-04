@@ -3,6 +3,9 @@ let equipments = [];
 let currentEquipment = null;
 let currentWeekId = getInitialWeekId();
 let currentHolidays = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+const LOGS_PER_PAGE = 15;
+let allLogs = [];
+let allActivityLogs = [];
 
 // Phase: Authentication Check
 function checkAuth() {
@@ -33,31 +36,46 @@ async function viewLogs() {
         const json = await res.json();
         
         if (json.success) {
-            tbody.innerHTML = '';
-            if (json.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">기록된 로그가 없습니다.</td></tr>';
-            } else {
-                json.data.forEach(log => {
-                    const tr = document.createElement('tr');
-                    // Handle both numeric and legacy string timestamps
-                    const timestamp = isNaN(log.timestamp) ? log.timestamp : Number(log.timestamp);
-                    const date = new Date(timestamp).toLocaleString('ko-KR');
-                    tr.innerHTML = `
-                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${date}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${log.username}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${log.ip}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">
-                            <span style="color: ${log.status === 'SUCCESS' ? '#10B981' : '#EF4444'}; font-weight: 600;">${log.status}</span>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            }
+            allLogs = json.data;
+            renderLogPage(1);
         }
     } catch (err) {
         console.error("Failed to fetch logs", err);
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: red;">로그를 불러오는데 실패했습니다.</td></tr>';
     }
+}
+
+function renderLogPage(page) {
+    const tbody = document.getElementById('logTableBody');
+    const pagination = document.getElementById('logPagination');
+    tbody.innerHTML = '';
+    
+    if (allLogs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">기록된 로그가 없습니다.</td></tr>';
+        pagination.innerHTML = '';
+        return;
+    }
+
+    const start = (page - 1) * LOGS_PER_PAGE;
+    const end = start + LOGS_PER_PAGE;
+    const pageLogs = allLogs.slice(start, end);
+
+    pageLogs.forEach(log => {
+        const tr = document.createElement('tr');
+        const timestamp = isNaN(log.timestamp) ? log.timestamp : Number(log.timestamp);
+        const date = new Date(timestamp).toLocaleString('ko-KR');
+        tr.innerHTML = `
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; font-size: 0.85rem;">${date}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${log.username}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; font-size: 0.85rem;">${log.ip}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">
+                <span style="color: ${log.status === 'SUCCESS' ? '#10B981' : '#EF4444'}; font-weight: 600;">${log.status}</span>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    renderPaginationButtons(allLogs.length, page, pagination, renderLogPage);
 }
 
 function closeLogModal() {
@@ -76,28 +94,80 @@ async function viewActivityLogs() {
         const json = await res.json();
         
         if (json.success) {
-            tbody.innerHTML = '';
-            if (json.data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">기록된 활동 로그가 없습니다.</td></tr>';
-            } else {
-                json.data.forEach(log => {
-                    const tr = document.createElement('tr');
-                    const timestamp = isNaN(log.timestamp) ? log.timestamp : Number(log.timestamp);
-                    const date = new Date(timestamp).toLocaleString('ko-KR');
-                    tr.innerHTML = `
-                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${date}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; font-weight: bold;">${log.username}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; color: #1E3A8A;">${log.action}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #ddd;">${log.details}</td>
-                        <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center;">${log.ip}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            }
+            allActivityLogs = json.data;
+            renderActivityLogPage(1);
         }
     } catch (err) {
         console.error("Failed to fetch activity logs", err);
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">로그를 불러오는데 실패했습니다.</td></tr>';
+    }
+}
+
+function renderActivityLogPage(page) {
+    const tbody = document.getElementById('activityLogTableBody');
+    const pagination = document.getElementById('activityLogPagination');
+    tbody.innerHTML = '';
+    
+    if (allActivityLogs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">기록된 활동 로그가 없습니다.</td></tr>';
+        pagination.innerHTML = '';
+        return;
+    }
+
+    const start = (page - 1) * LOGS_PER_PAGE;
+    const end = start + LOGS_PER_PAGE;
+    const pageLogs = allActivityLogs.slice(start, end);
+
+    pageLogs.forEach(log => {
+        const tr = document.createElement('tr');
+        const timestamp = isNaN(log.timestamp) ? log.timestamp : Number(log.timestamp);
+        const date = new Date(timestamp).toLocaleString('ko-KR');
+        tr.innerHTML = `
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; font-size: 0.85rem;">${date}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; font-weight: bold;">${log.username}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; color: #1E3A8A; font-size: 0.85rem;">${log.action}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; font-size: 0.85rem;">${log.details}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: center; font-size: 0.85rem;">${log.ip}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    renderPaginationButtons(allActivityLogs.length, page, pagination, renderActivityLogPage);
+}
+
+function renderPaginationButtons(totalCount, currentPage, container, renderFn) {
+    container.innerHTML = '';
+    const totalPages = Math.ceil(totalCount / LOGS_PER_PAGE);
+    if (totalPages <= 1) return;
+
+    const maxButtons = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+    if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    if (startPage > 1) {
+        const first = document.createElement('button');
+        first.textContent = '«';
+        first.onclick = () => renderFn(1);
+        container.appendChild(first);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        if (i === currentPage) btn.classList.add('active');
+        btn.onclick = () => renderFn(i);
+        container.appendChild(btn);
+    }
+
+    if (endPage < totalPages) {
+        const last = document.createElement('button');
+        last.textContent = '»';
+        last.onclick = () => renderFn(totalPages);
+        container.appendChild(last);
     }
 }
 
