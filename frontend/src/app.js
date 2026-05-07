@@ -386,8 +386,9 @@ btnSave.addEventListener('click', async () => {
 
     const rows = planTableBody.querySelectorAll('tr');
     const plansToSave = [];
+    const partNoSet = new Set();
 
-    rows.forEach(row => {
+    for (const row of rows) {
         const inputs = row.querySelectorAll('input');
         const plan = {};
         inputs.forEach(input => {
@@ -397,9 +398,14 @@ btnSave.addEventListener('click', async () => {
         // Only save rows that have at least some basic information or plan data
         const hasData = Object.values(plan).some(v => v !== '');
         if (hasData) {
+            if (plan.partNo && partNoSet.has(plan.partNo)) {
+                alert(`동일 장비 중복 품번입니다: ${plan.partNo}`);
+                return;
+            }
+            if (plan.partNo) partNoSet.add(plan.partNo);
             plansToSave.push(plan);
         }
-    });
+    }
 
     try {
         const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(currentEquipment)}/${encodeURIComponent(currentWeekId)}`, {
