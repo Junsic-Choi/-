@@ -643,9 +643,16 @@ async function loadConsolidatedPlans() {
 
             const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
 
-            const sortedEquipmentNames = Object.keys(groups).sort();
-            for (const eq of sortedEquipmentNames) {
+            const orderedEquipment = [];
+            json.data.forEach(plan => {
+                if (!orderedEquipment.includes(plan.equipment)) {
+                    orderedEquipment.push(plan.equipment);
+                }
+            });
+
+            for (const eq of orderedEquipment) {
                 const plans = groups[eq];
+
 
                 // Filter plans to only those with data (Actual planning hours must be present)
                 const activePlans = plans.filter(p => days.some(d => p[d] && String(p[d]).trim() !== ''));

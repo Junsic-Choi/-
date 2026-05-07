@@ -390,10 +390,16 @@ try {
             const groups = {}; data.forEach(p => { if (!groups[p.equipment]) groups[p.equipment] = []; groups[p.equipment].push(p); });
             const dayKeys = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
 
-            const sortedEquipmentNames = Object.keys(groups).sort();
+            const orderedEquipment = [];
+            data.forEach(plan => {
+                if (!orderedEquipment.includes(plan.equipment)) {
+                    orderedEquipment.push(plan.equipment);
+                }
+            });
 
-            for (const eq of sortedEquipmentNames) {
+            for (const eq of orderedEquipment) {
                 const plans = groups[eq];
+
                 const activePlans = plans.filter(p => dayKeys.some(d => p[d]));
                 
                 // Sort activePlans: 1. Manager, 2. Earliest day with a plan
