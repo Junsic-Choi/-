@@ -390,8 +390,29 @@ try {
             const groups = {}; data.forEach(p => { if (!groups[p.equipment]) groups[p.equipment] = []; groups[p.equipment].push(p); });
             const dayKeys = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
 
-            for (const [eq, plans] of Object.entries(groups)) {
+            const sortedEquipmentNames = Object.keys(groups).sort();
+
+            for (const eq of sortedEquipmentNames) {
+                const plans = groups[eq];
                 const activePlans = plans.filter(p => dayKeys.some(d => p[d]));
+                
+                // Sort activePlans: 1. Manager, 2. Earliest day with a plan
+                activePlans.sort((a, b) => {
+                    const managerA = (a.manager || '').trim();
+                    const managerB = (b.manager || '').trim();
+                    if (managerA !== managerB) {
+                        return managerA.localeCompare(managerB, 'ko');
+                    }
+                    const getEarliestIndex = (plan) => {
+                        for (let i = 0; i < dayKeys.length; i++) {
+                            const val = parseInt(plan[dayKeys[i]]) || 0;
+                            if (val > 0) return i;
+                        }
+                        return 999;
+                    };
+                    return getEarliestIndex(a) - getEarliestIndex(b);
+                });
+
                 if (activePlans.length === 0) continue;
 
                 const eqRow = ws.addRow([`[${eq}]`]);

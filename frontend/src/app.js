@@ -451,7 +451,11 @@ async function loadConsolidatedPlans() {
 
             const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
 
-            for (const [eq, plans] of Object.entries(groups)) {
+            const sortedEquipmentNames = Object.keys(groups).sort();
+
+            for (const eq of sortedEquipmentNames) {
+                const plans = groups[eq];
+
                 // Filter plans to only those with data (Actual planning hours must be present)
                 const activePlans = plans.filter(p => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[d] && String(p[d]).trim() !== ''));
                 if (activePlans.length === 0) continue; // Skip equipment group if no active plans
@@ -477,8 +481,30 @@ async function loadConsolidatedPlans() {
                 headerTr.innerHTML = `<td colspan="13">${eq} (총 실적률: ${rate}%)</td>`;
                 consolidatedTableBody.appendChild(headerTr);
 
+                // Sort activePlans: 1. Manager, 2. Earliest day with a plan
+                activePlans.sort((a, b) => {
+                    // 1. Manager sort (Korean strings)
+                    const managerA = (a.manager || '').trim();
+                    const managerB = (b.manager || '').trim();
+                    if (managerA !== managerB) {
+                        return managerA.localeCompare(managerB, 'ko');
+                    }
+
+                    // 2. Earliest plan date
+                    const getEarliestIndex = (plan) => {
+                        for (let i = 0; i < days.length; i++) {
+                            const val = parseInt(plan[days[i]]) || 0;
+                            if (val > 0) return i;
+                        }
+                        return 999; 
+                    };
+
+                    return getEarliestIndex(a) - getEarliestIndex(b);
+                });
+
                 // Render Rows
                 activePlans.forEach(plan => {
+
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td><strong>${plan.equipment}</strong></td>
