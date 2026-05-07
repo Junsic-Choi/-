@@ -590,11 +590,12 @@ btnSave.addEventListener('click', async () => {
         // Only save rows that have at least some basic information or plan data
         const hasData = Object.values(plan).some(v => v !== '');
         if (hasData) {
-            if (plan.partNo && partNoSet.has(plan.partNo)) {
+            const normalizedPartNo = plan.partNo ? plan.partNo.trim().toUpperCase() : '';
+            if (normalizedPartNo && partNoSet.has(normalizedPartNo)) {
                 alert(`동일 장비 중복 품번입니다: ${plan.partNo}`);
                 return;
             }
-            if (plan.partNo) partNoSet.add(plan.partNo);
+            if (normalizedPartNo) partNoSet.add(normalizedPartNo);
             plansToSave.push(plan);
         }
     }
