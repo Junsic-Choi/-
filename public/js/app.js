@@ -945,10 +945,12 @@ function getWeekIdFromDate(dateInput) {
     const offset = (day + 2) % 7;
     selectedDate.setDate(selectedDate.getDate() - offset);
 
-    const isoMonday = new Date(selectedDate);
-    isoMonday.setDate(isoMonday.getDate() + 1);
+    // To get the ISO week ID for a Friday-Thursday week,
+    // we use the Thursday (the last day of the week) for the calculation.
+    const thursday = new Date(selectedDate);
+    thursday.setDate(thursday.getDate() + 6);
 
-    const d = new Date(Date.UTC(isoMonday.getFullYear(), isoMonday.getMonth(), isoMonday.getDate()));
+    const d = new Date(Date.UTC(thursday.getFullYear(), thursday.getMonth(), thursday.getDate()));
     const dayNum = d.getUTCDay() || 7;
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
