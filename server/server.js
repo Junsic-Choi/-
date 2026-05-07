@@ -368,9 +368,9 @@ try {
             const ISOweekStart = new Date(simpleDate);
             if (dow <= 4) ISOweekStart.setDate(simpleDate.getDate() - simpleDate.getDay() + 1);
             else ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
-            ISOweekStart.setDate(ISOweekStart.getDate() - 1);
+            ISOweekStart.setDate(ISOweekStart.getDate() - 3); // Start from Friday
 
-            const korDays = ['일', '월', '화', '수', '목', '금', '토'];
+            const korDays = ['금', '토', '일', '월', '화', '수', '목'];
             const headers = ['NO', '담당자', '기종', '품명', '품번', '구분'];
             for (let i = 0; i < 7; i++) {
                 const d = new Date(ISOweekStart); d.setDate(ISOweekStart.getDate() + i);
@@ -388,7 +388,7 @@ try {
             ws.columns = headers.map((h, i) => ({ width: i < 5 ? (i === 3 || i === 4 ? 25 : 12) : 10 }));
 
             const groups = {}; data.forEach(p => { if (!groups[p.equipment]) groups[p.equipment] = []; groups[p.equipment].push(p); });
-            const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+            const dayKeys = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
 
             for (const [eq, plans] of Object.entries(groups)) {
                 const activePlans = plans.filter(p => dayKeys.some(d => p[d]));

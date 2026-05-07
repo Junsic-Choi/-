@@ -185,6 +185,14 @@ function renderHolidayUI() {
     const btns = document.querySelectorAll('.holiday-btn');
     btns.forEach(btn => {
         const day = btn.getAttribute('data-day');
+        // Force Sunday to be active (holiday) and non-interactive
+        if (day === 'sun') {
+            currentHolidays[day] = 1;
+            btn.classList.add('active');
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.7';
+            return;
+        }
         if (currentHolidays[day] === 1) {
             btn.classList.add('active');
         } else {
@@ -300,7 +308,10 @@ function applyManagerFilter() {
 }
 
 function applyHolidayRestrictions() {
-    const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
+
+    // Force Sunday to be a holiday as per user request
+    currentHolidays['sun'] = 1;
 
     // Header cells
     days.forEach(day => {
@@ -351,13 +362,13 @@ function createRow(index, data = {}) {
         <td style="width: 12%;"><input type="text" name="model" value="${data.model || ''}" placeholder="기종"></td>
         <td style="width: 22%;"><input type="text" name="partName" value="${data.partName || ''}" placeholder="품명" style="width: 100%;"></td>
         <td style="width: 22%;"><input type="text" name="partNo" value="${data.partNo || ''}" placeholder="품번" style="width: 100%;"></td>
-        <td style="width: 4%;"><input type="text" name="sun" value="${data.sun || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
-        <td style="width: 4%;"><input type="text" name="mon" value="${data.mon || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
-        <td style="width: 4%;"><input type="text" name="tue" value="${data.tue || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
-        <td style="width: 4%;"><input type="text" name="wed" value="${data.wed || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
-        <td style="width: 4%;"><input type="text" name="thu" value="${data.thu || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
-        <td style="width: 4%;"><input type="text" name="fri" value="${data.fri || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
-        <td style="width: 4%;"><input type="text" name="sat" value="${data.sat || ''}" maxlength="1" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="fri" value="${data.fri || ''}" maxlength="2" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="sat" value="${data.sat || ''}" maxlength="2" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="sun" value="${data.sun || ''}" maxlength="2" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="mon" value="${data.mon || ''}" maxlength="2" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="tue" value="${data.tue || ''}" maxlength="2" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="wed" value="${data.wed || ''}" maxlength="2" style="text-align: center; width: 100%;"></td>
+        <td style="width: 4%;"><input type="text" name="thu" value="${data.thu || ''}" maxlength="2" style="text-align: center; width: 100%;"></td>
         <td style="width: 5%;"><button class="btn btn-danger" onclick="this.closest('tr').remove()">삭제</button></td>
     `;
     return tr;
@@ -431,7 +442,7 @@ async function loadConsolidatedPlans() {
                 groups[eq].push(plan);
             });
 
-            const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+            const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
 
             for (const [eq, plans] of Object.entries(groups)) {
                 // Filter plans to only those with data (Actual planning hours must be present)
@@ -472,13 +483,13 @@ async function loadConsolidatedPlans() {
                             <div class="stats-row plan-row center">계획</div>
                             <div class="stats-row act-row center">실적</div>
                         </td>
+                        ${getCellHtml(plan, 'fri', equipmentHolidays)}
+                        ${getCellHtml(plan, 'sat', equipmentHolidays)}
                         ${getCellHtml(plan, 'sun', equipmentHolidays)}
                         ${getCellHtml(plan, 'mon', equipmentHolidays)}
                         ${getCellHtml(plan, 'tue', equipmentHolidays)}
                         ${getCellHtml(plan, 'wed', equipmentHolidays)}
                         ${getCellHtml(plan, 'thu', equipmentHolidays)}
-                        ${getCellHtml(plan, 'fri', equipmentHolidays)}
-                        ${getCellHtml(plan, 'sat', equipmentHolidays)}
                     `;
                     consolidatedTableBody.appendChild(tr);
                 });
@@ -625,7 +636,7 @@ function getDateStringFromWeekId(weekString) {
     else
         ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
 
-    ISOweekStart.setDate(ISOweekStart.getDate() - 1); // Sunday
+    ISOweekStart.setDate(ISOweekStart.getDate() - 3); // Friday
 
     const y = ISOweekStart.getFullYear();
     const m = String(ISOweekStart.getMonth() + 1).padStart(2, '0');
@@ -644,7 +655,10 @@ function getWeekIdFromDate(dateInput) {
     if (isNaN(selectedDate)) return null;
 
     const day = selectedDate.getDay();
-    selectedDate.setDate(selectedDate.getDate() - day);
+    // Week starts on Friday. Offset to go back to the most recent Friday.
+    // Fri(5)->0, Sat(6)->1, Sun(0)->2, Mon(1)->3, Tue(2)->4, Wed(3)->5, Thu(4)->6
+    const offset = (day + 2) % 7;
+    selectedDate.setDate(selectedDate.getDate() - offset);
 
     const isoMonday = new Date(selectedDate);
     isoMonday.setDate(isoMonday.getDate() + 1);
@@ -675,11 +689,11 @@ function updateTableHeadersForWeek(weekString) {
         ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
 
     // ISO week calculation always gives us a Monday.
-    // To make our week start on Sunday, we subtract 1 day from the ISO Monday.
-    ISOweekStart.setDate(ISOweekStart.getDate() - 1);
+    // To make our week start on Friday, we subtract 3 days from the ISO Monday.
+    ISOweekStart.setDate(ISOweekStart.getDate() - 3);
 
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const korDays = ['일', '월', '화', '수', '목', '금', '토'];
+    const days = ['Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu'];
+    const korDays = ['금', '토', '일', '월', '화', '수', '목'];
 
     let startDateStr = "";
     let endDateStr = "";
