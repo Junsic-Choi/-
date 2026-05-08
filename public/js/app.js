@@ -757,7 +757,7 @@ async function loadConsolidatedPlans() {
                     const colorStyle = isOverloaded ? 'color: #EF4444;' : 'color: #1E3A8A;';
 
                     totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; ${colorStyle}">
-                        <div class="stats-row center">${sum > 0 ? sum : ''}</div>
+                        <div class="stats-row center" style="font-size: 0.95rem;">${sum > 0 ? sum : ''}</div>
                     </td>`;
                 });
 
@@ -797,7 +797,7 @@ const getCellHtml = (plan, day, equipmentHolidays) => {
     }
 
     return `<td class="${tdClass}" style="vertical-align: middle; text-align: center;">
-        <div class="stats-row plan-row" style="font-weight: 600; font-size: 1.1rem; color: var(--primary);">${isHoliday ? 'X' : pStr}</div>
+        <div class="stats-row plan-row center" style="font-weight: 600; font-size: 0.95rem; color: var(--primary); justify-content: center;">${isHoliday ? 'X' : pStr}</div>
     </td>`;
 };
 
