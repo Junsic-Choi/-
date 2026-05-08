@@ -645,55 +645,39 @@ async function loadConsolidatedPlans() {
         // Phase 18: Fetch all holidays for this week
         const hRes = await fetchWithAuth(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`);
         const hJson = await hRes.json();
-        const holidaysMap = hJson.data || {}; // { equipment: { mon: 1, ... } }
+        const holidaysMap = hJson.data || {}; 
 
         consolidatedTableBody.innerHTML = '';
         if (json.success && json.data.length > 0) {
-        // Group by equipment
-        const groups = {};
-        const filterEq = equipmentConsFilter.value;
-        
-        json.data.forEach(plan => {
-            const eq = plan.equipment;
-            if (filterEq && eq !== filterEq) return;
-            if (!groups[eq]) groups[eq] = [];
-            groups[eq].push(plan);
-        });
-
-        consolidatedTableBody.innerHTML = '';
-        if (json.success && (json.data.length > 0)) {
+            const filterEq = equipmentConsFilter.value;
             const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
 
+            // Group by equipment
+            const groups = {};
             const orderedEquipment = [];
+            
             json.data.forEach(plan => {
-                if (filterEq && plan.equipment !== filterEq) return;
-                if (!orderedEquipment.includes(plan.equipment)) {
-                    orderedEquipment.push(plan.equipment);
+                const eq = plan.equipment;
+                if (filterEq && eq !== filterEq) return;
+                
+                if (!groups[eq]) {
+                    groups[eq] = [];
+                    orderedEquipment.push(eq);
                 }
+                groups[eq].push(plan);
             });
+
+            if (orderedEquipment.length === 0) {
+                consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">조건에 맞는 주간 계획이 없습니다.</td></tr>';
+                return;
+            }
 
             for (const eq of orderedEquipment) {
                 const plans = groups[eq];
-
-
-                // Filter plans to only those with data (Actual planning hours must be present)
                 const activePlans = plans.filter(p => days.some(d => p[d] && String(p[d]).trim() !== ''));
-                if (activePlans.length === 0) continue; // Skip equipment group if no active plans
+                if (activePlans.length === 0) continue; 
 
                 const equipmentHolidays = holidaysMap[eq] || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
-
-                // Calculate group rate
-                let groupPlanTotal = 0;
-                let groupActTotal = 0;
-
-                activePlans.forEach(p => {
-                    days.forEach(d => {
-                        groupPlanTotal += parseInt(p[d]) || 0;
-                        groupActTotal += parseInt(p[`${d}_act`]) || 0;
-                    });
-                });
-
-                const rate = groupPlanTotal > 0 ? Math.round((groupActTotal / groupPlanTotal) * 100) : 0;
 
                 // Render Group Header
                 const headerTr = document.createElement('tr');
@@ -701,13 +685,11 @@ async function loadConsolidatedPlans() {
                 headerTr.innerHTML = `<td colspan="13" style="text-align: left; padding-left: 1.5rem;">${eq}</td>`;
                 consolidatedTableBody.appendChild(headerTr);
 
-                // Sort activePlans: 1. Manager, 2. Earliest day with a plan
+                // Sort activePlans
                 activePlans.sort((a, b) => {
                     const managerA = (a.manager || '').trim();
                     const managerB = (b.manager || '').trim();
-                    if (managerA !== managerB) {
-                        return managerA.localeCompare(managerB, 'ko');
-                    }
+                    if (managerA !== managerB) return managerA.localeCompare(managerB, 'ko');
                     const getEarliestIndex = (plan) => {
                         for (let i = 0; i < days.length; i++) {
                             const val = parseInt(plan[days[i]]) || 0;
@@ -721,7 +703,6 @@ async function loadConsolidatedPlans() {
                 // Render Rows
                 activePlans.forEach(plan => {
                     const isUrgent = plan.urgentStatus === 'URGENT';
-
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td><strong>${plan.equipment}</strong></td>
@@ -745,18 +726,11 @@ async function loadConsolidatedPlans() {
                     consolidatedTableBody.appendChild(tr);
                 });
 
-                // Phase: Add Daily Plan Totals Row (Excluding Actuals)
-                const totalRow = document.createElement('tr');
-                totalRow.className = 'group-total-row';
-
-                // Calculate daily plan sums and weekly average
+                // Add Daily Plan Totals Row
                 const dailySums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
                 let totalWeeklyPlan = 0;
                 let activeDaysCount = 0;
-
-                days.forEach(d => {
-                    if (equipmentHolidays[d] !== 1) activeDaysCount++;
-                });
+                days.forEach(d => { if (equipmentHolidays[d] !== 1) activeDaysCount++; });
 
                 activePlans.forEach(p => {
                     days.forEach(d => {
@@ -767,36 +741,26 @@ async function loadConsolidatedPlans() {
                 });
 
                 const averagePerDay = activeDaysCount > 0 ? (totalWeeklyPlan / activeDaysCount) : 0;
+                const totalRow = document.createElement('tr');
+                totalRow.className = 'group-total-row';
 
-                let totalRowHtml = `
-                    <td colspan="6" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">[${eq}] 일별 계획 합계</td>
-                `;
-
+                let totalRowHtml = `<td colspan="6" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">[${eq}] 일별 계획 합계</td>`;
                 days.forEach(d => {
                     const sum = dailySums[d];
                     const isOverloaded = sum > averagePerDay && sum > 0;
                     const colorStyle = isOverloaded ? 'color: #EF4444;' : 'color: #1E3A8A;';
-
                     totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; ${colorStyle}">
                         <div class="stats-row center" style="font-size: 0.95rem;">${sum > 0 ? sum : ''}</div>
                     </td>`;
                 });
-
                 totalRow.innerHTML = totalRowHtml;
                 consolidatedTableBody.appendChild(totalRow);
             }
         } else {
-            consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">주간 계획이 등록된 장비가 없습니다.</td></tr>';
+            consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">주간 계획이 등록된 데이터가 없습니다.</td></tr>';
         }
 
-
-        // Add grid class to table
         consolidatedTableBody.closest('table').classList.add('consolidated-table');
-
-        // Apply yellow highlight to completed cells
-        document.querySelectorAll('.consolidated-table .completed-cell').forEach(td => {
-            td.style.backgroundColor = '#FFFF99'; // Excel-like Yellow
-        });
 
     } catch (err) {
         console.error(err);
