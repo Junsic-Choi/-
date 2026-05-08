@@ -196,7 +196,7 @@ table {
 
 th,
 td {
-    padding: 0.8rem 0.5rem;
+    padding: 0.5rem 0.3rem;
     /* Reduced horizontal padding slightly, increased vertical */
     border-bottom: 1px solid var(--border-color);
     white-space: normal;
@@ -225,8 +225,9 @@ th {
 }
 
 .consolidated-table td strong {
-    padding: 0.5rem;
+    padding: 0.3rem;
     display: block;
+    white-space: nowrap;
 }
 
 .consolidated-table td:not(.grid-cell) {
@@ -330,7 +331,7 @@ input[type="text"]:focus {
     align-items: center;
     justify-content: flex-start;
     font-size: 0.9rem;
-    min-height: 32px;
+    min-height: 28px;
     padding: 0 0.5rem;
 }
 
@@ -517,7 +518,7 @@ input[type="text"]:focus {
 /* Urgent Status Styles */
 .importance-star {
     color: #10B981 !important;
-    font-size: 1.8rem !important;
+    font-size: 1.4rem !important;
     font-weight: 900 !important;
     line-height: 1 !important;
 }
