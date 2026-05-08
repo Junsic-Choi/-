@@ -210,6 +210,7 @@ const currentEquipmentTitle = document.getElementById('currentEquipmentTitle');
 const btnRefreshConsolidated = document.getElementById('refreshConsolidatedBtn');
 const editModeBtn = document.getElementById('editModeBtn');
 const saveConsolidatedBtn = document.getElementById('saveConsolidatedBtn');
+const equipmentConsFilter = document.getElementById('equipmentConsFilter');
 const toastEl = document.getElementById('toast');
 
 let isConsolidatedEditMode = false;
@@ -255,6 +256,10 @@ async function init() {
         applyManagerFilter(); // Filter rows in current editor
     });
 
+    equipmentConsFilter.addEventListener('change', () => {
+        loadConsolidatedPlans();
+    });
+
     await fetchEquipments();
     selectConsolidatedView(); // Make Consolidated View the default
 }
@@ -269,6 +274,13 @@ async function fetchEquipments() {
         const json = await res.json();
         if (json.success) {
             equipments = json.data;
+            // Populate consolidated equipment filter
+            equipmentConsFilter.innerHTML = '<option value="">전체 장비</option>';
+            equipments.forEach(eq => {
+                const opt = document.createElement('option');
+                opt.value = opt.textContent = eq;
+                equipmentConsFilter.appendChild(opt);
+            });
             await refreshManagerFilterAndTabs();
         }
     } catch (err) {
@@ -637,18 +649,24 @@ async function loadConsolidatedPlans() {
 
         consolidatedTableBody.innerHTML = '';
         if (json.success && json.data.length > 0) {
-            // Group by equipment
-            const groups = {};
-            json.data.forEach(plan => {
-                const eq = plan.equipment;
-                if (!groups[eq]) groups[eq] = [];
-                groups[eq].push(plan);
-            });
+        // Group by equipment
+        const groups = {};
+        const filterEq = equipmentConsFilter.value;
+        
+        json.data.forEach(plan => {
+            const eq = plan.equipment;
+            if (filterEq && eq !== filterEq) return;
+            if (!groups[eq]) groups[eq] = [];
+            groups[eq].push(plan);
+        });
 
+        consolidatedTableBody.innerHTML = '';
+        if (json.success && (json.data.length > 0)) {
             const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
 
             const orderedEquipment = [];
             json.data.forEach(plan => {
+                if (filterEq && plan.equipment !== filterEq) return;
                 if (!orderedEquipment.includes(plan.equipment)) {
                     orderedEquipment.push(plan.equipment);
                 }
@@ -710,7 +728,7 @@ async function loadConsolidatedPlans() {
                         <td>${plan.manager}</td>
                         <td>${plan.model}</td>
                         <td>${plan.partName}</td>
-                        <td class="part-no-cell ${isUrgent ? 'urgent-text' : ''}" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')">
+                        <td class="part-no-cell" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')">
                             <span class="part-no-text">${plan.partNo}</span>
                         </td>
                         <td class="importance-cell">

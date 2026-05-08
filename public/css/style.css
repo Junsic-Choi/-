@@ -515,11 +515,6 @@ input[type="text"]:focus {
 }
 
 /* Urgent Status Styles */
-.urgent-text .part-no-text {
-    color: #EF4444 !important;
-    font-weight: 700;
-}
-
 .importance-star {
     color: #10B981 !important;
     font-size: 1.8rem !important;

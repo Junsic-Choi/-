@@ -263,7 +263,10 @@
             <section id="consolidatedView" class="tab-content">
                 <div class="editor-header">
                     <h2>통합 화면 : 전체 주간 정삭 계획</h2>
-                    <div class="filter-group">
+                    <div class="filter-group" style="display: flex; gap: 0.5rem; align-items: center;">
+                        <select id="equipmentConsFilter" class="btn btn-secondary" style="background: white; color: var(--text-main); border: 1px solid var(--border-color); height: 38px; padding: 0 10px;">
+                            <option value="">전체 장비</option>
+                        </select>
                         <button class="btn btn-warning" id="editModeBtn">✏️ 수정 모드</button>
                         <button class="btn btn-primary hidden" id="saveConsolidatedBtn">💾 변경사항 저장</button>
                         <button class="btn btn-success" id="exportExcelBtn">📥 엑셀 추출</button>

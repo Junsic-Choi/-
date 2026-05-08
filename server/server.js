@@ -465,9 +465,6 @@ try {
                     r1.eachCell((c, col) => {
                         c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
                         c.alignment = { horizontal: 'center', vertical: 'middle' };
-                        if (col === 5 && isUrgent) {
-                            c.font = { bold: true, color: { argb: 'FFFF0000' } };
-                        }
                         if (col === 6 && isUrgent) {
                             c.font = { bold: true, color: { argb: 'FF10B981' }, size: 14 };
                         }
