@@ -387,7 +387,7 @@ try {
             ISOweekStart.setDate(ISOweekStart.getDate() - 3); // Start from Friday
 
             const korDays = ['금', '토', '일', '월', '화', '수', '목'];
-            const headers = ['NO', '담당자', '기종', '품명', '품번'];
+            const headers = ['NO', '담당자', '기종', '품명', '품번', '중요도'];
             for (let i = 0; i < 7; i++) {
                 const d = new Date(ISOweekStart); d.setDate(ISOweekStart.getDate() + i);
                 headers.push(`${korDays[i]}(${d.getMonth() + 1}/${d.getDate()})`);
@@ -438,10 +438,11 @@ try {
                 if (activePlans.length === 0) continue;
 
                 const eqRow = ws.addRow([`[${eq}]`]);
-                ws.mergeCells(eqRow.number, 1, eqRow.number, 12);
+                ws.mergeCells(eqRow.number, 1, eqRow.number, 13);
                 eqRow.eachCell(c => {
                     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
                     c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                    c.alignment = { horizontal: 'left', vertical: 'middle' };
                 });
 
                 const h = hMap[eq] || {};
@@ -449,7 +450,8 @@ try {
                 const dailySums = {}; dayKeys.forEach(d => dailySums[d] = 0);
 
                 activePlans.forEach((p, idx) => {
-                    const planVals = [idx + 1, p.manager, p.model, p.partName, p.partNo];
+                    const isUrgent = p.urgentStatus === 'URGENT';
+                    const planVals = [idx + 1, p.manager, p.model, p.partName, p.partNo, isUrgent ? '*' : ''];
                     dayKeys.forEach(d => {
                         const isHoliday = h[d] === 1;
                         const pVal = isHoliday ? 'X' : (p[d] || '');
@@ -463,19 +465,25 @@ try {
                     r1.eachCell((c, col) => {
                         c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
                         c.alignment = { horizontal: 'center', vertical: 'middle' };
-                        if (col > 5) {
+                        if (col === 5 && isUrgent) {
+                            c.font = { bold: true, color: { argb: 'FFFF0000' } };
+                        }
+                        if (col === 6 && isUrgent) {
+                            c.font = { bold: true, color: { argb: 'FF10B981' }, size: 14 };
+                        }
+                        if (col > 6) {
                             c.font = { bold: true, color: { argb: 'FF1E3A8A' } };
                         }
                     });
                 });
 
                 const avg = activeDays > 0 ? totalPlan / activeDays : 0;
-                const totRow = ws.addRow(['', '', '', '', '일별 계획 합계', ...dayKeys.map(d => dailySums[d] || '')]);
+                const totRow = ws.addRow(['', '', '', '', '', '일별 계획 합계', ...dayKeys.map(d => dailySums[d] || '')]);
                 totRow.eachCell((c, col) => {
-                    if (col >= 5) {
+                    if (col >= 6) {
                         c.font = { bold: true };
-                        if (col > 5) {
-                            const sum = dailySums[dayKeys[col - 6]];
+                        if (col > 6) {
+                            const sum = dailySums[dayKeys[col - 7]];
                             if (sum > avg && sum > 0) c.font = { bold: true, color: { argb: 'FFFF0000' } };
                         }
                         c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };

@@ -625,7 +625,7 @@ btnSave.addEventListener('click', async () => {
 
 // Load Consolidated View
 async function loadConsolidatedPlans() {
-    consolidatedTableBody.innerHTML = '<tr><td colspan="12" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
+    consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
     try {
         const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
@@ -680,7 +680,7 @@ async function loadConsolidatedPlans() {
                 // Render Group Header
                 const headerTr = document.createElement('tr');
                 headerTr.className = 'group-header';
-                headerTr.innerHTML = `<td colspan="12">${eq}</td>`;
+                headerTr.innerHTML = `<td colspan="13" style="text-align: left; padding-left: 1.5rem;">${eq}</td>`;
                 consolidatedTableBody.appendChild(headerTr);
 
                 // Sort activePlans: 1. Manager, 2. Earliest day with a plan
@@ -702,6 +702,7 @@ async function loadConsolidatedPlans() {
 
                 // Render Rows
                 activePlans.forEach(plan => {
+                    const isUrgent = plan.urgentStatus === 'URGENT';
 
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
@@ -709,9 +710,11 @@ async function loadConsolidatedPlans() {
                         <td>${plan.manager}</td>
                         <td>${plan.model}</td>
                         <td>${plan.partName}</td>
-                        <td class="part-no-cell" onclick="showUrgentMenu(event, '${plan.id}', '${plan.urgentStatus || ''}')">
+                        <td class="part-no-cell ${isUrgent ? 'urgent-text' : ''}" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')">
                             <span class="part-no-text">${plan.partNo}</span>
-                            ${plan.urgentStatus ? `<div class="urgent-label">${plan.urgentStatus}</div>` : ''}
+                        </td>
+                        <td class="importance-cell">
+                            ${isUrgent ? '<span class="importance-star">*</span>' : ''}
                         </td>
                         ${getCellHtml(plan, 'fri', equipmentHolidays)}
                         ${getCellHtml(plan, 'sat', equipmentHolidays)}
@@ -748,7 +751,7 @@ async function loadConsolidatedPlans() {
                 const averagePerDay = activeDaysCount > 0 ? (totalWeeklyPlan / activeDaysCount) : 0;
 
                 let totalRowHtml = `
-                    <td colspan="5" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">[${eq}] 일별 계획 합계</td>
+                    <td colspan="6" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">[${eq}] 일별 계획 합계</td>
                 `;
 
                 days.forEach(d => {
@@ -765,7 +768,7 @@ async function loadConsolidatedPlans() {
                 consolidatedTableBody.appendChild(totalRow);
             }
         } else {
-            consolidatedTableBody.innerHTML = '<tr><td colspan="12" style="text-align:center;">주간 계획이 등록된 장비가 없습니다.</td></tr>';
+            consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">주간 계획이 등록된 장비가 없습니다.</td></tr>';
         }
 
 
@@ -779,7 +782,7 @@ async function loadConsolidatedPlans() {
 
     } catch (err) {
         console.error(err);
-        consolidatedTableBody.innerHTML = '<tr><td colspan="12" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
+        consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
     }
 }
 
@@ -868,47 +871,44 @@ saveConsolidatedBtn.addEventListener('click', async () => {
 // Refresh Consolidated View
 document.getElementById('refreshConsolidatedBtn').addEventListener('click', loadConsolidatedPlans);
 
+// Toggle Urgent Status directly on Part No click
+async function toggleUrgentStatus(planId, currentStatus) {
+    if (!planId || planId === 'undefined' || planId === 'null') {
+        alert('이 항목은 아직 현재 주차에 저장되지 않았습니다.\n계획 또는 실적을 먼저 저장한 후 다시 시도해 주세요.');
+        return;
+    }
+
+    const nextStatus = currentStatus === 'URGENT' ? '' : 'URGENT';
+
+    try {
+        console.log(`Toggling urgent status for ID ${planId} to: ${nextStatus}`);
+        const res = await fetchWithAuth(`${API_BASE}/urgent-status/${planId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urgentStatus: nextStatus })
+        });
+        
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Server responded with ${res.status}: ${errorText}`);
+        }
+
+        const json = await res.json();
+        if (json.success) {
+            showToast(nextStatus === 'URGENT' ? '✅ 중요 항목으로 지정되었습니다.' : '✅ 중요 항목 지정이 해제되었습니다.');
+            loadConsolidatedPlans(); 
+        } else {
+            alert('업데이트 실패: ' + json.error);
+        }
+    } catch (err) {
+        console.error("Urgent update error:", err);
+        alert(`업데이트 중 오류가 발생했습니다.\n상태: ${err.message}`);
+    }
+}
+
 // Phase: Urgent Status Management
 function showUrgentMenu(event, planId, currentStatus) {
-    event.stopPropagation();
-    
-    // Remove existing menus
-    const existing = document.querySelector('.urgent-selection-menu');
-    if (existing) existing.remove();
-
-    const menu = document.createElement('div');
-    menu.className = 'urgent-selection-menu';
-    
-    const options = [
-        { label: '지정 안 함 (해제)', value: '' },
-        { label: '*황삭 완료 후 바로 정삭 필요', value: '*황삭 완료 후 바로 정삭 필요' }
-    ];
-
-    options.forEach(opt => {
-        const item = document.createElement('div');
-        item.className = 'urgent-menu-item' + (currentStatus === opt.value ? ' active' : '');
-        if (opt.value === '') item.classList.add('danger');
-        item.textContent = opt.label;
-        item.onclick = async () => {
-            await updateUrgentStatus(planId, opt.value);
-            menu.remove();
-        };
-        menu.appendChild(item);
-    });
-
-    document.body.appendChild(menu);
-    
-    // Position menu near the click
-    const rect = event.currentTarget.getBoundingClientRect();
-    menu.style.left = rect.left + 'px';
-    menu.style.top = (rect.bottom + window.scrollY) + 'px';
-
-    // Close on click outside
-    const closer = () => {
-        menu.remove();
-        document.removeEventListener('click', closer);
-    };
-    setTimeout(() => document.addEventListener('click', closer), 10);
+    // Deprecated in favor of toggleUrgentStatus
 }
 
 async function updateUrgentStatus(planId, status) {
