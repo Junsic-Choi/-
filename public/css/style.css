@@ -521,10 +521,10 @@ input[type="text"]:focus {
 }
 
 .importance-star {
-    color: #10B981;
-    font-size: 1.5rem;
-    font-weight: 900;
-    line-height: 1;
+    color: #10B981 !important;
+    font-size: 1.8rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
 }
 
 .importance-cell {
