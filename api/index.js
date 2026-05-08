@@ -307,7 +307,7 @@ try {
                 });
 
                 const avg = activeDays > 0 ? totalPlan / activeDays : 0;
-                const totRow = ws.addRow(['', '', '', '', '', '일별 계획 합계', ...dayKeys.map(d => dailySums[d] || '')]);
+                const totRow = ws.addRow(['', '', '', '', '', '합계', ...dayKeys.map(d => dailySums[d] || '')]);
                 totRow.eachCell((c, col) => {
                     if (col >= 6) {
                         c.font = { bold: true };
