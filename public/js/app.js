@@ -208,7 +208,11 @@ const consolidatedView = document.getElementById('consolidatedView');
 const consolidatedTableBody = document.getElementById('consolidatedTableBody');
 const currentEquipmentTitle = document.getElementById('currentEquipmentTitle');
 const btnRefreshConsolidated = document.getElementById('refreshConsolidatedBtn');
+const editModeBtn = document.getElementById('editModeBtn');
+const saveConsolidatedBtn = document.getElementById('saveConsolidatedBtn');
 const toastEl = document.getElementById('toast');
+
+let isConsolidatedEditMode = false;
 
 // Initialize
 async function init() {
@@ -676,7 +680,7 @@ async function loadConsolidatedPlans() {
                 // Render Group Header
                 const headerTr = document.createElement('tr');
                 headerTr.className = 'group-header';
-                headerTr.innerHTML = `<td colspan="13">${eq} (총 실적률: ${rate}%)</td>`;
+                headerTr.innerHTML = `<td colspan="12">${eq}</td>`;
                 consolidatedTableBody.appendChild(headerTr);
 
                 // Sort activePlans: 1. Manager, 2. Earliest day with a plan
@@ -708,10 +712,6 @@ async function loadConsolidatedPlans() {
                         <td class="part-no-cell" onclick="showUrgentMenu(event, '${plan.id}', '${plan.urgentStatus || ''}')">
                             <span class="part-no-text">${plan.partNo}</span>
                             ${plan.urgentStatus ? `<div class="urgent-label">${plan.urgentStatus}</div>` : ''}
-                        </td>
-                        <td class="type-cell grid-cell">
-                            <div class="stats-row plan-row center">계획</div>
-                            <div class="stats-row act-row center">실적</div>
                         </td>
                         ${getCellHtml(plan, 'fri', equipmentHolidays)}
                         ${getCellHtml(plan, 'sat', equipmentHolidays)}
@@ -749,9 +749,6 @@ async function loadConsolidatedPlans() {
 
                 let totalRowHtml = `
                     <td colspan="5" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">[${eq}] 일별 계획 합계</td>
-                    <td class="type-cell grid-cell" style="background-color: #F8FAFC;">
-                        <div class="stats-row center" style="font-weight: bold;">합계</div>
-                    </td>
                 `;
 
                 days.forEach(d => {
@@ -768,7 +765,7 @@ async function loadConsolidatedPlans() {
                 consolidatedTableBody.appendChild(totalRow);
             }
         } else {
-            consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">주간 계획이 등록된 장비가 없습니다.</td></tr>';
+            consolidatedTableBody.innerHTML = '<tr><td colspan="12" style="text-align:center;">주간 계획이 등록된 장비가 없습니다.</td></tr>';
         }
 
 
@@ -782,28 +779,91 @@ async function loadConsolidatedPlans() {
 
     } catch (err) {
         console.error(err);
-        consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
+        consolidatedTableBody.innerHTML = '<tr><td colspan="12" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
     }
 }
 
 const getCellHtml = (plan, day, equipmentHolidays) => {
     const isHoliday = equipmentHolidays && equipmentHolidays[day] === 1;
     const pStr = plan[day] || '';
-    const aStr = plan[`${day}_act`] || '';
-    const pVal = parseInt(pStr) || 0;
-    const aVal = parseInt(aStr) || 0;
-
-    const isCompleted = pStr !== '' && aVal >= pVal && pVal > 0;
-
+    
     let tdClass = 'grid-cell';
     if (isHoliday) tdClass += ' holiday-column';
-    else if (isCompleted) tdClass += ' completed-cell';
 
-    return `<td class="${tdClass}" style="vertical-align: middle;">
-        <div class="stats-row plan-row"><span class="plan-val-text">${isHoliday ? 'X' : pStr}</span></div>
-        <div class="stats-row act-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled placeholder="X"' : ''}></div>
+    if (isConsolidatedEditMode && !isHoliday) {
+        return `<td class="${tdClass}" style="vertical-align: middle; padding: 0;">
+            <input type="text" class="cons-plan-input" data-id="${plan.id}" data-day="${day}" value="${pStr}" maxlength="2" style="width: 100%; height: 100%; border: none; text-align: center; background: transparent; font-size: 1rem; font-weight: 600; color: var(--primary);">
+        </td>`;
+    }
+
+    return `<td class="${tdClass}" style="vertical-align: middle; text-align: center;">
+        <div class="stats-row plan-row" style="font-weight: 600; font-size: 1.1rem; color: var(--primary);">${isHoliday ? 'X' : pStr}</div>
     </td>`;
 };
+
+// Toggle Consolidated Edit Mode
+editModeBtn.addEventListener('click', () => {
+    isConsolidatedEditMode = !isConsolidatedEditMode;
+    if (isConsolidatedEditMode) {
+        editModeBtn.textContent = '🔓 수정 종료';
+        editModeBtn.classList.remove('btn-warning');
+        editModeBtn.classList.add('btn-secondary');
+        saveConsolidatedBtn.classList.remove('hidden');
+    } else {
+        editModeBtn.textContent = '✏️ 수정 모드';
+        editModeBtn.classList.remove('btn-secondary');
+        editModeBtn.classList.add('btn-warning');
+        saveConsolidatedBtn.classList.add('hidden');
+        loadConsolidatedPlans(); // Refresh to original view
+    }
+    loadConsolidatedPlans();
+});
+
+// Save updated plans from consolidated view
+saveConsolidatedBtn.addEventListener('click', async () => {
+    const inputs = document.querySelectorAll('.cons-plan-input');
+    const updateMap = {};
+
+    inputs.forEach(input => {
+        const id = input.getAttribute('data-id');
+        const day = input.getAttribute('data-day');
+        const val = input.value.trim();
+
+        if (!updateMap[id]) updateMap[id] = { id: id };
+        updateMap[id][day] = val;
+    });
+
+    const updatesArray = Object.values(updateMap);
+
+    if (updatesArray.length === 0) {
+        showToast('변경할 데이터가 없습니다.', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/plans-batch-update`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ updates: updatesArray })
+        });
+        const json = await res.json();
+
+        if (json.success) {
+            showToast('✅ 계획 수량이 성공적으로 저장되었습니다!');
+            isConsolidatedEditMode = false;
+            editModeBtn.textContent = '✏️ 수정 모드';
+            editModeBtn.classList.remove('btn-secondary');
+            editModeBtn.classList.add('btn-warning');
+            saveConsolidatedBtn.classList.add('hidden');
+            loadConsolidatedPlans();
+        } else {
+            alert('저장 실패: ' + json.error);
+        }
+    } catch (err) {
+        console.error(err);
+        alert('네트워크 오류가 발생했습니다.');
+    }
+});
 
 // Refresh Consolidated View
 document.getElementById('refreshConsolidatedBtn').addEventListener('click', loadConsolidatedPlans);

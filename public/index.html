@@ -262,9 +262,10 @@
             <!-- Content for Consolidated View -->
             <section id="consolidatedView" class="tab-content">
                 <div class="editor-header">
-                    <h2>통합 화면 : 전체 주간 정삭 계획 및 실적</h2>
+                    <h2>통합 화면 : 전체 주간 정삭 계획</h2>
                     <div class="filter-group">
-                        <button class="btn btn-primary" id="saveActualsBtn">💾 실적 저장</button>
+                        <button class="btn btn-warning" id="editModeBtn">✏️ 수정 모드</button>
+                        <button class="btn btn-primary hidden" id="saveConsolidatedBtn">💾 변경사항 저장</button>
                         <button class="btn btn-success" id="exportExcelBtn">📥 엑셀 추출</button>
                         <button class="btn btn-secondary" id="refreshConsolidatedBtn">🔄 새로고침</button>
                     </div>
@@ -274,19 +275,18 @@
                         <table id="consolidatedTable">
                             <thead>
                                 <tr>
-                                    <th>장비 (W/C)</th>
-                                    <th>담당자</th>
-                                    <th>기종</th>
-                                    <th>품명</th>
-                                    <th>품번</th>
-                                    <th id="thType">구분</th>
-                                    <th id="thConsFri">금</th>
-                                    <th id="thConsSat">토</th>
-                                    <th id="thConsSun">일</th>
-                                    <th id="thConsMon">월</th>
-                                    <th id="thConsTue">화</th>
-                                    <th id="thConsWed">수</th>
-                                    <th id="thConsThu">목</th>
+                                    <th style="width: 8%;">장비 (W/C)</th>
+                                    <th style="width: 7%;">담당자</th>
+                                    <th style="width: 10%;">기종</th>
+                                    <th style="width: 15%;">품명</th>
+                                    <th style="width: 15%;">품번</th>
+                                    <th id="thConsFri" style="width: 6.4%;">금</th>
+                                    <th id="thConsSat" style="width: 6.4%;">토</th>
+                                    <th id="thConsSun" style="width: 6.4%;">일</th>
+                                    <th id="thConsMon" style="width: 6.4%;">월</th>
+                                    <th id="thConsTue" style="width: 6.4%;">화</th>
+                                    <th id="thConsWed" style="width: 6.4%;">수</th>
+                                    <th id="thConsThu" style="width: 6.4%;">목</th>
                                 </tr>
                             </thead>
                             <tbody id="consolidatedTableBody">

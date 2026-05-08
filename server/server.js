@@ -320,6 +320,22 @@ try {
         }
     });
 
+    app.put('/api/plans-batch-update', async (req, res) => {
+        const updates = req.body.updates || [];
+        if (updates.length === 0) return res.json({ success: true, message: 'Nothing to update.' });
+        try {
+            const batch = updates.map(u => ({
+                sql: `UPDATE plans SET mon = ?, tue = ?, wed = ?, thu = ?, fri = ?, sat = ?, sun = ? WHERE id = ?`,
+                args: [u.mon || "", u.tue || "", u.wed || "", u.thu || "", u.fri || "", u.sat || "", u.sun || "", u.id]
+            }));
+            await client.batch(batch, 'write');
+            await logActivity(req, '계획 일괄 수정 (통합)', `${updates.length}개 항목 수량 업데이트`);
+            res.json({ success: true, message: 'Plans updated.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
     app.put('/api/plans-actuals', async (req, res) => {
         const actuals = req.body.actuals || [];
         if (actuals.length === 0) return res.json({ success: true, message: 'Nothing to update.' });
@@ -371,7 +387,7 @@ try {
             ISOweekStart.setDate(ISOweekStart.getDate() - 3); // Start from Friday
 
             const korDays = ['금', '토', '일', '월', '화', '수', '목'];
-            const headers = ['NO', '담당자', '기종', '품명', '품번', '구분'];
+            const headers = ['NO', '담당자', '기종', '품명', '품번'];
             for (let i = 0; i < 7; i++) {
                 const d = new Date(ISOweekStart); d.setDate(ISOweekStart.getDate() + i);
                 headers.push(`${korDays[i]}(${d.getMonth() + 1}/${d.getDate()})`);
@@ -422,7 +438,7 @@ try {
                 if (activePlans.length === 0) continue;
 
                 const eqRow = ws.addRow([`[${eq}]`]);
-                ws.mergeCells(eqRow.number, 1, eqRow.number, 13);
+                ws.mergeCells(eqRow.number, 1, eqRow.number, 12);
                 eqRow.eachCell(c => {
                     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E78' } };
                     c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -433,36 +449,33 @@ try {
                 const dailySums = {}; dayKeys.forEach(d => dailySums[d] = 0);
 
                 activePlans.forEach((p, idx) => {
-                    const planVals = [idx + 1, p.manager, p.model, p.partName, p.partNo, '계획'];
-                    const actVals = ['', '', '', '', '', '실적'];
+                    const planVals = [idx + 1, p.manager, p.model, p.partName, p.partNo];
                     dayKeys.forEach(d => {
                         const isHoliday = h[d] === 1;
                         const pVal = isHoliday ? 'X' : (p[d] || '');
                         planVals.push(pVal);
-                        actVals.push(isHoliday ? 'X' : (p[`${d}_act`] || ''));
                         if (!isHoliday && pVal !== '') { 
                             const v = parseInt(pVal) || 0; 
                             dailySums[d] += v; totalPlan += v; 
                         }
                     });
-                    const r1 = ws.addRow(planVals); const r2 = ws.addRow(actVals);
-                    [r1, r2].forEach(row => row.eachCell((c, col) => {
+                    const r1 = ws.addRow(planVals);
+                    r1.eachCell((c, col) => {
                         c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
                         c.alignment = { horizontal: 'center', vertical: 'middle' };
-                        if (col === 6) {
-                            c.font = { bold: true };
-                            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: c.value === '계획' ? 'FFE6F0FF' : 'FFF2F2F2' } };
+                        if (col > 5) {
+                            c.font = { bold: true, color: { argb: 'FF1E3A8A' } };
                         }
-                    }));
+                    });
                 });
 
                 const avg = activeDays > 0 ? totalPlan / activeDays : 0;
-                const totRow = ws.addRow(['', '', '', '', '', '일별 합계', ...dayKeys.map(d => dailySums[d] || '')]);
+                const totRow = ws.addRow(['', '', '', '', '일별 계획 합계', ...dayKeys.map(d => dailySums[d] || '')]);
                 totRow.eachCell((c, col) => {
-                    if (col >= 6) {
+                    if (col >= 5) {
                         c.font = { bold: true };
-                        if (col > 6) {
-                            const sum = dailySums[dayKeys[col - 7]];
+                        if (col > 5) {
+                            const sum = dailySums[dayKeys[col - 6]];
                             if (sum > avg && sum > 0) c.font = { bold: true, color: { argb: 'FFFF0000' } };
                         }
                         c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };

@@ -258,6 +258,18 @@ input[type="text"]:focus {
     box-shadow: 0 0 0 2px rgba(30, 58, 138, 0.2);
 }
 
+.cons-plan-input:focus {
+    background: #FFF !important;
+    outline: 2px solid var(--primary) !important;
+    box-shadow: 0 0 8px rgba(30, 58, 138, 0.3);
+    z-index: 10;
+    position: relative;
+}
+
+.cons-plan-input:hover:not(:focus) {
+    background: rgba(30, 58, 138, 0.05) !important;
+}
+
 .week-picker-wrapper {
     position: relative;
     cursor: pointer;
