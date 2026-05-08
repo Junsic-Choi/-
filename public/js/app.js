@@ -625,7 +625,7 @@ btnSave.addEventListener('click', async () => {
 
 // Load Consolidated View
 async function loadConsolidatedPlans() {
-    consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
+    consolidatedTableBody.innerHTML = '<tr><td colspan="12" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
     try {
         const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
@@ -867,47 +867,6 @@ saveConsolidatedBtn.addEventListener('click', async () => {
 
 // Refresh Consolidated View
 document.getElementById('refreshConsolidatedBtn').addEventListener('click', loadConsolidatedPlans);
-
-// Phase 7: Save Actuals
-document.getElementById('saveActualsBtn').addEventListener('click', async () => {
-    const inputs = document.querySelectorAll('.act-input');
-    const updateMap = {};
-
-    inputs.forEach(input => {
-        const id = input.getAttribute('data-id');
-        const day = input.getAttribute('data-day'); // e.g. 'mon_act'
-        const val = input.value.trim();
-
-        if (!updateMap[id]) updateMap[id] = { id: id };
-        updateMap[id][day] = val;
-    });
-
-    const actualsArray = Object.values(updateMap);
-
-    if (actualsArray.length === 0) {
-        showToast('저장할 실적 데이터가 없습니다.', 'error');
-        return;
-    }
-
-    try {
-        const res = await fetchWithAuth(`${API_BASE}/plans-actuals`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ actuals: actualsArray })
-        });
-        const json = await res.json();
-
-        if (json.success) {
-            showToast('✅ 실적 데이터가 성공적으로 저장되었습니다!');
-            loadConsolidatedPlans(); // refresh to recalculate rates/colors
-        } else {
-            alert('저장 실패: ' + json.error);
-        }
-    } catch (err) {
-        console.error(err);
-        alert('네트워크 오류가 발생했습니다.');
-    }
-});
 
 // Phase: Urgent Status Management
 function showUrgentMenu(event, planId, currentStatus) {
