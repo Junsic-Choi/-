@@ -35,7 +35,9 @@ try {
     };
 
     const checkAuth = (req, res, next) => {
-        if (req.path === '/api/login') return next();
+        // Skip auth for login
+        if (req.path === '/login' || req.path === '/api/login') return next();
+        
         const authHeader = req.headers.authorization;
         if (authHeader === `Bearer ${ADMIN_TOKEN}`) {
             next();
@@ -45,7 +47,6 @@ try {
     };
 
     app.use('/api', (req, res, next) => {
-        if (req.path === '/login') return next();
         checkAuth(req, res, next);
     });
 
@@ -74,21 +75,33 @@ try {
     });
 
     app.get('/api/logs', async (req, res) => {
-        const rows = await all(`SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100`);
-        res.json({ success: true, data: rows });
+        try {
+            const rows = await all(`SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100`);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     app.get('/api/activity-logs', async (req, res) => {
-        const rows = await all(`SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 200`);
-        res.json({ success: true, data: rows });
+        try {
+            const rows = await all(`SELECT * FROM activity_logs ORDER BY timestamp DESC LIMIT 200`);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     app.post('/api/urgent-status/:id', async (req, res) => {
         const { id } = req.params;
         const { urgentStatus } = req.body;
-        await run(`UPDATE plans SET urgentStatus = ? WHERE id = ?`, [urgentStatus, id]);
-        await logActivity(req, '중점 항목 변경', `ID: ${id}, 상태: ${urgentStatus || '해제'}`);
-        res.json({ success: true, message: 'Urgent status updated.' });
+        try {
+            await run(`UPDATE plans SET urgentStatus = ? WHERE id = ?`, [urgentStatus, id]);
+            await logActivity(req, '중점 항목 변경', `ID: ${id}, 상태: ${urgentStatus || '해제'}`);
+            res.json({ success: true, message: 'Urgent status updated.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     const ALL_EQUIPMENTS = ["HSP6300", "HSP8000 #1", "HSP8000 #2", "HM2J", "AH2J", "Y10T", "Y15T", "YBM1530"];
@@ -98,78 +111,130 @@ try {
     });
 
     app.get('/api/managers', async (req, res) => {
-        const rows = await all(`SELECT DISTINCT manager FROM plans WHERE manager IS NOT NULL AND manager != '' ORDER BY manager ASC`);
-        res.json({ success: true, data: rows.map(r => r.manager) });
+        try {
+            const rows = await all(`SELECT DISTINCT manager FROM plans WHERE manager IS NOT NULL AND manager != '' ORDER BY manager ASC`);
+            res.json({ success: true, data: rows.map(r => r.manager) });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     app.get('/api/holidays/:equipment/:weekId', async (req, res) => {
         const { equipment, weekId } = req.params;
-        const row = await get(`SELECT * FROM equipment_holidays WHERE equipment = ? AND weekId = ?`, [equipment, weekId]);
-        res.json({ success: true, data: row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 } });
+        try {
+            const row = await get(`SELECT * FROM equipment_holidays WHERE equipment = ? AND weekId = ?`, [equipment, weekId]);
+            res.json({ success: true, data: row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 } });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     app.get('/api/holidays-all/:weekId', async (req, res) => {
         const { weekId } = req.params;
-        const rows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
-        const map = {};
-        rows.forEach(r => map[r.equipment] = r);
-        res.json({ success: true, data: map });
+        try {
+            const rows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
+            const map = {};
+            rows.forEach(r => map[r.equipment] = r);
+            res.json({ success: true, data: map });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     app.post('/api/holidays', async (req, res) => {
         const { equipment, weekId, holidays } = req.body;
         const { mon, tue, wed, thu, fri, sat, sun } = holidays;
-        await run(`INSERT INTO equipment_holidays (equipment, weekId, mon, tue, wed, thu, fri, sat, sun) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(equipment, weekId) DO UPDATE SET mon=excluded.mon, tue=excluded.tue, wed=excluded.wed, thu=excluded.thu, fri=excluded.fri, sat=excluded.sat, sun=excluded.sun`, [equipment, weekId, mon, tue, wed, thu, fri, sat, sun]);
-        res.json({ success: true });
+        try {
+            await run(`INSERT INTO equipment_holidays (equipment, weekId, mon, tue, wed, thu, fri, sat, sun) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(equipment, weekId) DO UPDATE SET mon=excluded.mon, tue=excluded.tue, wed=excluded.wed, thu=excluded.thu, fri=excluded.fri, sat=excluded.sat, sun=excluded.sun`, [equipment, weekId, mon, tue, wed, thu, fri, sat, sun]);
+            res.json({ success: true });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     app.get('/api/plans/:equipment/:weekId', async (req, res) => {
         const { equipment, weekId } = req.params;
-        const rows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? ORDER BY id ASC`, [equipment, weekId]);
-        if (rows.length > 0) return res.json({ success: true, data: rows });
-        const pastRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId <= ? ORDER BY weekId DESC LIMIT 20`, [equipment, weekId]);
-        if (pastRows.length > 0) {
-            const mostRecentWeekId = pastRows[0].weekId;
-            const latestWeekRows = pastRows.filter(r => r.weekId === mostRecentWeekId);
-            const carryoverData = latestWeekRows.map(row => ({ ...row, id: undefined, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" }));
-            return res.json({ success: true, data: carryoverData });
+        try {
+            const rows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? ORDER BY id ASC`, [equipment, weekId]);
+            if (rows.length > 0) return res.json({ success: true, data: rows });
+            const pastRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId <= ? ORDER BY weekId DESC LIMIT 20`, [equipment, weekId]);
+            if (pastRows.length > 0) {
+                const mostRecentWeekId = pastRows[0].weekId;
+                const latestWeekRows = pastRows.filter(r => r.weekId === mostRecentWeekId);
+                const carryoverData = latestWeekRows.map(row => ({ ...row, id: undefined, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" }));
+                return res.json({ success: true, data: carryoverData });
+            }
+            res.json({ success: true, data: [] });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
         }
-        res.json({ success: true, data: [] });
     });
 
     app.post('/api/plans/:equipment/:weekId', async (req, res) => {
         const { equipment, weekId } = req.params;
         const plans = req.body.plans || [];
-        const batch = [{ sql: `DELETE FROM plans WHERE equipment = ? AND weekId = ?`, args: [equipment, weekId] }];
-        plans.forEach(p => {
-            batch.push({
-                sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [equipment, weekId, p.manager || "", p.model || "", p.partName || "", p.partNo || "", p.mon || "", p.tue || "", p.wed || "", p.thu || "", p.fri || "", p.sat || "", p.sun || ""]
+        try {
+            const currentRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ?`, [equipment, weekId]);
+            
+            const batch = [{ sql: `DELETE FROM plans WHERE equipment = ? AND weekId = ?`, args: [equipment, weekId] }];
+            plans.forEach(p => {
+                const existing = currentRows.find(cr => cr.partNo === p.partNo && cr.partName === p.partName && cr.model === p.model);
+                batch.push({
+                    sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [equipment, weekId, p.manager || "", p.model || "", p.partName || "", p.partNo || "", p.mon || "", p.tue || "", p.wed || "", p.thu || "", p.fri || "", p.sat || "", p.sun || "", existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""]
+                });
             });
-        });
-        await client.batch(batch, 'write');
-        await logActivity(req, '계획 수정/저장', `${equipment} (${weekId}) - ${plans.length}개 항목`);
-        res.json({ success: true });
+
+            // Future weeks synchronization
+            const futureWeeks = await all(`SELECT DISTINCT weekId FROM plans WHERE equipment = ? AND weekId > ? ORDER BY weekId ASC`, [equipment, weekId]);
+            for (const fw of futureWeeks) {
+                const targetWeek = fw.weekId;
+                const targetRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ?`, [equipment, targetWeek]);
+                batch.push({ sql: `DELETE FROM plans WHERE equipment = ? AND weekId = ?`, args: [equipment, targetWeek] });
+                plans.forEach(p => {
+                    const existing = targetRows.find(tr => tr.partNo === p.partNo && tr.partName === p.partName && tr.model === p.model);
+                    batch.push({
+                        sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        args: [equipment, targetWeek, p.manager || "", p.model || "", p.partName || "", p.partNo || "", existing ? existing.mon : "", existing ? existing.tue : "", existing ? existing.wed : "", existing ? existing.thu : "", existing ? existing.fri : "", existing ? existing.sat : "", existing ? existing.sun : "", existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""]
+                    });
+                });
+            }
+
+            await client.batch(batch, 'write');
+            await logActivity(req, '계획 수정/저장', `${equipment} (${weekId}) - ${plans.length}개 항목`);
+            res.json({ success: true });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     app.put('/api/plans-batch-update', async (req, res) => {
-        const { updates } = req.body;
-        if (!updates || !Array.isArray(updates)) return res.status(400).json({ success: false, error: 'Invalid updates' });
+        const updates = req.body.updates || [];
+        if (updates.length === 0) return res.json({ success: true, message: 'Nothing to update.' });
         try {
-            const batch = [];
-            updates.forEach(upd => {
-                const { id, day, value } = upd;
-                if (!id || !day) return;
-                const allowedDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-                if (!allowedDays.includes(day)) return;
-                batch.push({
-                    sql: `UPDATE plans SET ${day} = ? WHERE id = ?`,
-                    args: [value, id]
-                });
-            });
-            if (batch.length > 0) await client.batch(batch, 'write');
-            await logActivity(req, '계획 대량 수정', `${updates.length}개 셀 업데이트`);
-            res.json({ success: true });
+            const batch = updates.map(u => ({
+                sql: `UPDATE plans SET mon = ?, tue = ?, wed = ?, thu = ?, fri = ?, sat = ?, sun = ? WHERE id = ?`,
+                args: [u.mon || "", u.tue || "", u.wed || "", u.thu || "", u.fri || "", u.sat || "", u.sun || "", u.id]
+            }));
+            await client.batch(batch, 'write');
+            await logActivity(req, '계획 일괄 수정 (통합)', `${updates.length}개 항목 수량 업데이트`);
+            res.json({ success: true, message: 'Plans updated.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.put('/api/plans-actuals', async (req, res) => {
+        const actuals = req.body.actuals || [];
+        if (actuals.length === 0) return res.json({ success: true, message: 'Nothing to update.' });
+        try {
+            const batch = actuals.map(a => ({
+                sql: `UPDATE plans SET mon_act = ?, tue_act = ?, wed_act = ?, thu_act = ?, fri_act = ?, sat_act = ?, sun_act = ? WHERE id = ?`,
+                args: [a.mon_act || "", a.tue_act || "", a.wed_act || "", a.thu_act || "", a.fri_act || "", a.sat_act || "", a.sun_act || "", a.id]
+            }));
+            await client.batch(batch, 'write');
+            await logActivity(req, '실적 입력', `${actuals.length}개 항목 실적 업데이트`);
+            res.json({ success: true, message: 'Actuals saved.' });
         } catch (err) {
             res.status(500).json({ success: false, error: err.message });
         }
@@ -177,12 +242,16 @@ try {
 
     app.get('/api/plans-consolidated/:weekId', async (req, res) => {
         const { weekId } = req.params;
-        const sql = `SELECT p.* FROM plans p INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek`;
-        const rows = await all(sql, [weekId]);
-        const processed = rows.map(row => row.weekId === weekId ? row : { ...row, id: undefined, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });
-        const consolidatedData = [];
-        ALL_EQUIPMENTS.forEach(eq => processed.filter(d => d.equipment.trim() === eq.trim()).forEach(row => consolidatedData.push(row)));
-        res.json({ success: true, data: consolidatedData });
+        try {
+            const sql = `SELECT p.* FROM plans p INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek`;
+            const rows = await all(sql, [weekId]);
+            const processed = rows.map(row => row.weekId === weekId ? row : { ...row, id: undefined, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });
+            const consolidatedData = [];
+            ALL_EQUIPMENTS.forEach(eq => processed.filter(d => d.equipment.trim() === eq.trim()).forEach(row => consolidatedData.push(row)));
+            res.json({ success: true, data: consolidatedData });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
     });
 
     function getTextWidth(text) {
@@ -218,7 +287,6 @@ try {
             if (dow <= 4) ISOweekStart.setDate(simpleDate.getDate() - simpleDate.getDay() + 1);
             else ISOweekStart.setDate(simpleDate.getDate() + 8 - simpleDate.getDay());
             
-            // Monday - 3 days = Friday
             ISOweekStart.setDate(ISOweekStart.getDate() - 3);
 
             const korDays = ['금', '토', '일', '월', '화', '수', '목'];
@@ -250,7 +318,6 @@ try {
 
             for (const eq of orderedEquipment) {
                 const plans = groups[eq];
-
                 const activePlans = plans.filter(p => dayKeys.some(d => p[d]));
                 
                 activePlans.sort((a, b) => {
