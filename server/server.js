@@ -276,7 +276,9 @@ try {
         const { equipment, weekId } = req.params;
         try {
             const row = await get(`SELECT * FROM equipment_holidays WHERE equipment = ? AND weekId = ?`, [equipment, weekId]);
-            res.json({ success: true, data: row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 } });
+            const holidays = row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+            holidays.sun = 1; // Force Sunday to be a holiday
+            res.json({ success: true, data: holidays });
         } catch (err) {
             res.status(500).json({ success: false, error: err.message });
         }
@@ -307,7 +309,14 @@ try {
         try {
             const rows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
             const map = {};
-            rows.forEach(r => map[r.equipment] = r);
+            // Pre-populate all equipments with Sunday as holiday
+            ALL_EQUIPMENTS.forEach(eq => {
+                map[eq] = { equipment: eq, weekId, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 1 };
+            });
+            // Overwrite with DB values, but keep Sunday as 1
+            rows.forEach(r => {
+                map[r.equipment] = { ...r, sun: 1 };
+            });
             res.json({ success: true, data: map });
         } catch (err) {
             res.status(500).json({ success: false, error: err.message });
@@ -316,7 +325,8 @@ try {
 
     app.post('/api/holidays', async (req, res) => {
         const { equipment, weekId, holidays } = req.body;
-        const { mon, tue, wed, thu, fri, sat, sun } = holidays;
+        const { mon, tue, wed, thu, fri, sat } = holidays;
+        const sun = 1; // Always force Sunday to 1
         try {
             await run(`INSERT INTO equipment_holidays (equipment, weekId, mon, tue, wed, thu, fri, sat, sun) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(equipment, weekId) DO UPDATE SET mon=excluded.mon, tue=excluded.tue, wed=excluded.wed, thu=excluded.thu, fri=excluded.fri, sat=excluded.sat, sun=excluded.sun`, [equipment, weekId, mon, tue, wed, thu, fri, sat, sun]);
             res.json({ success: true, message: 'Holidays updated.' });
@@ -450,7 +460,7 @@ try {
                     c.alignment = { horizontal: 'left', vertical: 'middle' };
                 });
 
-                const h = hMap[eq] || {};
+                const h = { ...(hMap[eq] || {}), sun: 1 };
                 let totalPlan = 0; let activeDays = dayKeys.filter(d => h[d] !== 1).length;
                 const dailySums = {}; dayKeys.forEach(d => dailySums[d] = 0);
 
@@ -480,7 +490,7 @@ try {
                 });
 
                 const avg = activeDays > 0 ? totalPlan / activeDays : 0;
-                const totRow = ws.addRow(['', '', '', '', '', '합계', ...dayKeys.map(d => dailySums[d] || '')]);
+                const totRow = ws.addRow(['', '', '', '', '', '합계', ...dayKeys.map(d => h[d] === 1 ? 'X' : (dailySums[d] || ''))]);
                 totRow.eachCell((c, col) => {
                     if (col >= 6) {
                         c.font = { bold: true };

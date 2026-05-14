@@ -483,8 +483,11 @@ async function loadConsolidatedPlans() {
 
                 activePlans.forEach(p => {
                     days.forEach(d => {
-                        groupPlanTotal += parseInt(p[d]) || 0;
-                        groupActTotal += parseInt(p[`${d}_act`]) || 0;
+                        const isHoliday = equipmentHolidays && equipmentHolidays[d] === 1;
+                        if (!isHoliday) {
+                            groupPlanTotal += parseInt(p[d]) || 0;
+                            groupActTotal += parseInt(p[`${d}_act`]) || 0;
+                        }
                     });
                 });
 
@@ -549,7 +552,10 @@ async function loadConsolidatedPlans() {
                 const dailySums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
                 activePlans.forEach(p => {
                     days.forEach(d => {
-                        dailySums[d] += parseInt(p[d]) || 0;
+                        const isHoliday = equipmentHolidays && equipmentHolidays[d] === 1;
+                        if (!isHoliday) {
+                            dailySums[d] += parseInt(p[d]) || 0;
+                        }
                     });
                 });
 
@@ -561,8 +567,9 @@ async function loadConsolidatedPlans() {
                 `;
 
                 days.forEach(d => {
+                    const isHoliday = equipmentHolidays && equipmentHolidays[d] === 1;
                     totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; color: #1E3A8A;">
-                        <div class="stats-row center">${dailySums[d] > 0 ? dailySums[d] : ''}</div>
+                        <div class="stats-row center">${isHoliday ? 'X' : (dailySums[d] > 0 ? dailySums[d] : '')}</div>
                     </td>`;
                 });
 
