@@ -515,6 +515,79 @@ input[type="text"]:focus {
     pointer-events: none;
 }
 
+/* Phase 18: Holiday UI Styles */
+.holiday-column {
+    background-color: #fcebeb !important;
+}
+
+.holiday-column .stats-row.plan-row,
+.holiday-column .stats-row.act-row,
+.holiday-column .act-input,
+.holiday-column .grid-cell {
+    background-color: #fcebeb !important;
+}
+
+.holiday-column input {
+    color: #999 !important;
+    border-color: #ddd !important;
+    cursor: not-allowed;
+}
+
+.holiday-cell-text {
+    color: #ff4d4f;
+    font-weight: 700;
+    font-size: 0.8rem;
+    margin-top: 2px;
+}
+
+.holiday-section {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border-left: 5px solid #ff4d4f;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.holiday-label {
+    font-weight: 700;
+    color: #333;
+    font-size: 0.95rem;
+}
+
+.holiday-toggles {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.holiday-btn {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f5f5f5;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.holiday-btn.active {
+    background: #ff4d4f;
+    color: #fff;
+    border-color: #ff4d4f;
+}
+
+.holiday-btn:hover {
+    background: #e0e0e0;
+}
+
+.holiday-btn.active:hover {
+    background: #ff7875;
+}
+
 /* Urgent Status Styles */
 .importance-star {
     color: #10B981 !important;

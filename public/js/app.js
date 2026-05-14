@@ -731,12 +731,14 @@ async function loadConsolidatedPlans() {
 
                 // Add Daily Plan Totals Row
                 const dailySums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+                equipmentHolidays.sun = 1; // Force Sunday as holiday for all
                 let totalWeeklyPlan = 0;
                 let activeDaysCount = 0;
                 days.forEach(d => { if (equipmentHolidays[d] !== 1) activeDaysCount++; });
 
                 activePlans.forEach(p => {
                     days.forEach(d => {
+                        if (equipmentHolidays[d] === 1) return; // Ignore holiday data for totals
                         const val = parseInt(p[d]) || 0;
                         dailySums[d] += val;
                         totalWeeklyPlan += val;
@@ -749,6 +751,12 @@ async function loadConsolidatedPlans() {
 
                 let totalRowHtml = `<td colspan="6" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">[${eq}] 일별 계획 합계</td>`;
                 days.forEach(d => {
+                    if (equipmentHolidays[d] === 1) {
+                        totalRowHtml += `<td class="grid-cell center holiday-column" style="vertical-align: middle; font-weight: bold; color: #1E3A8A;">
+                            <div class="stats-row center" style="font-size: 0.95rem;">X</div>
+                        </td>`;
+                        return;
+                    }
                     const sum = dailySums[d];
                     const isOverloaded = sum > averagePerDay && sum > 0;
                     const colorStyle = isOverloaded ? 'color: #EF4444;' : 'color: #1E3A8A;';
