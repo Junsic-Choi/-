@@ -549,7 +549,7 @@ function applyHolidayRestrictions() {
             if (currentHolidays[day] === 1) {
                 td.classList.add('holiday-column');
                 input.disabled = true;
-                input.placeholder = "X";
+                input.placeholder = "";
                 input.value = "";
             } else {
                 td.classList.remove('holiday-column');
@@ -753,7 +753,7 @@ async function loadConsolidatedPlans() {
                 days.forEach(d => {
                     if (equipmentHolidays[d] === 1) {
                         totalRowHtml += `<td class="grid-cell center holiday-column" style="vertical-align: middle; font-weight: bold; color: #1E3A8A;">
-                            <div class="stats-row center" style="font-size: 0.95rem;">X</div>
+                            <div class="stats-row center" style="font-size: 0.95rem;"></div>
                         </td>`;
                         return;
                     }
@@ -795,7 +795,7 @@ const getCellHtml = (plan, day, equipmentHolidays) => {
     }
 
     return `<td class="${tdClass}" style="vertical-align: middle; text-align: center;">
-        <div class="stats-row plan-row center" style="font-weight: 600; font-size: 0.95rem; color: var(--primary); justify-content: center;">${isHoliday ? 'X' : pStr}</div>
+        <div class="stats-row plan-row center" style="font-weight: 600; font-size: 0.95rem; color: var(--primary); justify-content: center;">${isHoliday ? '' : pStr}</div>
     </td>`;
 };
 

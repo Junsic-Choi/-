@@ -342,7 +342,7 @@ function applyHolidayRestrictions() {
             if (currentHolidays[day] === 1) {
                 td.classList.add('holiday-column');
                 input.disabled = true;
-                input.placeholder = "X";
+                input.placeholder = "";
                 input.value = "";
             } else {
                 td.classList.remove('holiday-column');
@@ -567,9 +567,14 @@ async function loadConsolidatedPlans() {
                 `;
 
                 days.forEach(d => {
-                    const isHoliday = equipmentHolidays && equipmentHolidays[d] === 1;
+                    if (equipmentHolidays[d] === 1) {
+                        totalRowHtml += `<td class="grid-cell center holiday-column" style="vertical-align: middle; font-weight: bold; color: #1E3A8A;">
+                            <div class="stats-row center" style="font-size: 0.95rem;"></div>
+                        </td>`;
+                        return;
+                    }
                     totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; color: #1E3A8A;">
-                        <div class="stats-row center">${isHoliday ? 'X' : (dailySums[d] > 0 ? dailySums[d] : '')}</div>
+                        <div class="stats-row center">${dailySums[d] > 0 ? dailySums[d] : ''}</div>
                     </td>`;
                 });
 
@@ -611,9 +616,9 @@ const getCellHtml = (plan, day, equipmentHolidays) => {
     if (isHoliday) tdClass += ' holiday-column';
     else if (isCompleted) tdClass += ' completed-cell';
 
-    return `<td class="${tdClass}" style="vertical-align: middle;">
-        <div class="stats-row plan-row"><span class="plan-val-text">${isHoliday ? 'X' : pStr}</span></div>
-        <div class="stats-row act-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled placeholder="X"' : ''}></div>
+    return `<td class="${tdClass}" style="vertical-align: middle; text-align: center;">
+        <div class="stats-row plan-row center" style="font-weight: 600; font-size: 0.95rem; color: var(--primary); justify-content: center;">${isHoliday ? '' : pStr}</div>
+        <div class="stats-row act-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled' : ''}></div>
     </td>`;
 };
 

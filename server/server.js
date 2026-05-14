@@ -469,7 +469,7 @@ try {
                     const planVals = [idx + 1, p.manager, p.model, p.partName, p.partNo, isUrgent ? '*' : ''];
                     dayKeys.forEach(d => {
                         const isHoliday = h[d] === 1;
-                        const pVal = isHoliday ? 'X' : (p[d] || '');
+                        const pVal = isHoliday ? '' : (p[d] || '');
                         planVals.push(pVal);
                         if (!isHoliday && pVal !== '') { 
                             const v = parseInt(pVal) || 0; 
@@ -493,7 +493,7 @@ try {
                 });
 
                 const avg = activeDays > 0 ? totalPlan / activeDays : 0;
-                const totRow = ws.addRow(['', '', '', '', '', '합계', ...dayKeys.map(d => h[d] === 1 ? 'X' : (dailySums[d] || ''))]);
+                const totRow = ws.addRow(['', '', '', '', '', '합계', ...dayKeys.map(d => h[d] === 1 ? '' : (dailySums[d] || ''))]);
                 totRow.eachCell((c, col) => {
                     if (col >= 6) {
                         c.font = { bold: true };
