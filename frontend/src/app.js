@@ -431,16 +431,24 @@ btnSave.addEventListener('click', async () => {
 async function loadConsolidatedPlans() {
     consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
     try {
-        const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+        // Parallelize fetches for better performance
+        const [res, hRes] = await Promise.all([
+            fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`),
+            fetch(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`)
+        ]);
+
         const json = await res.json();
-
-        // Phase 18: Fetch all holidays for this week
-        const hRes = await fetch(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`);
         const hJson = await hRes.json();
-        const holidaysMap = hJson.data || {}; // { equipment: { mon: 1, ... } }
+        const holidaysMap = hJson.data || {};
 
-        consolidatedTableBody.innerHTML = '';
-        if (json.success && json.data.length > 0) {
+        if (!json.success) {
+            throw new Error(json.error || "Failed to load plans");
+        }
+
+        // Use a document fragment to minimize reflows
+        const fragment = document.createDocumentFragment();
+        
+        if (json.data.length > 0) {
             // Group by equipment
             const groups = {};
             json.data.forEach(plan => {
@@ -486,7 +494,7 @@ async function loadConsolidatedPlans() {
                 const headerTr = document.createElement('tr');
                 headerTr.className = 'group-header';
                 headerTr.innerHTML = `<td colspan="13">${eq} (총 실적률: ${rate}%)</td>`;
-                consolidatedTableBody.appendChild(headerTr);
+                fragment.appendChild(headerTr);
 
                 // Sort activePlans: 1. Manager, 2. Earliest day with a plan
                 activePlans.sort((a, b) => {
@@ -511,7 +519,6 @@ async function loadConsolidatedPlans() {
 
                 // Render Rows
                 activePlans.forEach(plan => {
-
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td><strong>${plan.equipment}</strong></td>
@@ -531,7 +538,7 @@ async function loadConsolidatedPlans() {
                         ${getCellHtml(plan, 'wed', equipmentHolidays)}
                         ${getCellHtml(plan, 'thu', equipmentHolidays)}
                     `;
-                    consolidatedTableBody.appendChild(tr);
+                    fragment.appendChild(tr);
                 });
 
                 // Phase: Add Daily Plan Totals Row (Excluding Actuals)
@@ -560,8 +567,11 @@ async function loadConsolidatedPlans() {
                 });
 
                 totalRow.innerHTML = totalRowHtml;
-                consolidatedTableBody.appendChild(totalRow);
+                fragment.appendChild(totalRow);
             }
+
+            consolidatedTableBody.innerHTML = '';
+            consolidatedTableBody.appendChild(fragment);
         } else {
             consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">주간 계획이 등록된 장비가 없습니다.</td></tr>';
         }

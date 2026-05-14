@@ -137,6 +137,11 @@ try {
                 PRIMARY KEY (equipment, weekId)
             )`);
 
+            // Performance Indexes
+            await run(`CREATE INDEX IF NOT EXISTS idx_plans_eq_week ON plans(equipment, weekId)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_plans_weekId ON plans(weekId)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_plans_manager ON plans(manager)`);
+
             await run(`UPDATE plans SET equipment = 'HSP8000 #1' WHERE equipment = 'HSP8000'`);
             await run(`UPDATE plans SET equipment = 'HSP8000 #2' WHERE equipment = '#2'`);
             

@@ -446,12 +446,14 @@ async function loadPlans(equipment) {
     // managerFilter.value = ''; // Reset filter when switching equipment/week - REMOVED to allow filter persistence
     planTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">로딩중...</td></tr>';
 
-    // Fetch holidays first
-    await fetchHolidays(equipment);
-
+    // Parallelize holiday and plan fetching
     try {
-        const res = await fetchWithAuth(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
-        const json = await res.json();
+        const [hData, pRes] = await Promise.all([
+            fetchHolidays(equipment),
+            fetchWithAuth(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`)
+        ]);
+        
+        const json = await pRes.json();
         planTableBody.innerHTML = '';
 
         if (json.success && json.data.length > 0) {
@@ -639,15 +641,16 @@ btnSave.addEventListener('click', async () => {
 async function loadConsolidatedPlans() {
     consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
     try {
-        const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+        const [res, hRes] = await Promise.all([
+            fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`),
+            fetchWithAuth(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`)
+        ]);
+        
         const json = await res.json();
-
-        // Phase 18: Fetch all holidays for this week
-        const hRes = await fetchWithAuth(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`);
         const hJson = await hRes.json();
         const holidaysMap = hJson.data || {}; 
 
-        consolidatedTableBody.innerHTML = '';
+        const fragment = document.createDocumentFragment();
         if (json.success && json.data.length > 0) {
             const filterEq = equipmentConsFilter.value;
             const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
@@ -683,7 +686,7 @@ async function loadConsolidatedPlans() {
                 const headerTr = document.createElement('tr');
                 headerTr.className = 'group-header';
                 headerTr.innerHTML = `<td colspan="13" style="text-align: left; padding-left: 1.5rem;">${eq}</td>`;
-                consolidatedTableBody.appendChild(headerTr);
+                fragment.appendChild(headerTr);
 
                 // Sort activePlans
                 activePlans.sort((a, b) => {
@@ -723,7 +726,7 @@ async function loadConsolidatedPlans() {
                         ${getCellHtml(plan, 'wed', equipmentHolidays)}
                         ${getCellHtml(plan, 'thu', equipmentHolidays)}
                     `;
-                    consolidatedTableBody.appendChild(tr);
+                    fragment.appendChild(tr);
                 });
 
                 // Add Daily Plan Totals Row
@@ -754,8 +757,10 @@ async function loadConsolidatedPlans() {
                     </td>`;
                 });
                 totalRow.innerHTML = totalRowHtml;
-                consolidatedTableBody.appendChild(totalRow);
+                fragment.appendChild(totalRow);
             }
+            consolidatedTableBody.innerHTML = '';
+            consolidatedTableBody.appendChild(fragment);
         } else {
             consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">주간 계획이 등록된 데이터가 없습니다.</td></tr>';
         }
