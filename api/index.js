@@ -379,6 +379,9 @@ try {
                         }
                         if (col > 6) {
                             c.font = { bold: true, color: { argb: 'FF1E3A8A' } };
+                            if (h[dayKeys[col - 7]] === 1) {
+                                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCEBEB' } };
+                            }
                         }
                     });
                 });
@@ -389,8 +392,12 @@ try {
                     if (col >= 6) {
                         c.font = { bold: true };
                         if (col > 6) {
-                            const sum = dailySums[dayKeys[col - 7]];
+                            const dayKey = dayKeys[col - 7];
+                            const sum = dailySums[dayKey];
                             if (sum > avg && sum > 0) c.font = { bold: true, color: { argb: 'FFFF0000' } };
+                            if (h[dayKey] === 1) {
+                                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCEBEB' } };
+                            }
                         }
                         c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
                         c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'medium' }, right: { style: 'thin' } };
