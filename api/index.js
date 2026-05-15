@@ -124,7 +124,6 @@ try {
         try {
             const row = await get(`SELECT * FROM equipment_holidays WHERE equipment = ? AND weekId = ?`, [equipment, weekId]);
             const holidays = row || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
-            holidays.sun = 1; // Force Sunday to be a holiday
             res.json({ success: true, data: holidays });
         } catch (err) {
             res.status(500).json({ success: false, error: err.message });
@@ -136,13 +135,13 @@ try {
         try {
             const rows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
             const map = {};
-            // Pre-populate all equipments with Sunday as holiday
+            // Pre-populate all equipments with no holidays by default
             ALL_EQUIPMENTS.forEach(eq => {
-                map[eq] = { equipment: eq, weekId, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 1 };
+                map[eq] = { equipment: eq, weekId, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
             });
-            // Overwrite with DB values, but keep Sunday as 1
+            // Overwrite with DB values
             rows.forEach(r => {
-                map[r.equipment] = { ...r, sun: 1 };
+                map[r.equipment] = r;
             });
             res.json({ success: true, data: map });
         } catch (err) {
@@ -152,8 +151,7 @@ try {
 
     app.post('/api/holidays', async (req, res) => {
         const { equipment, weekId, holidays } = req.body;
-        const { mon, tue, wed, thu, fri, sat } = holidays;
-        const sun = 1; // Always force Sunday to 1
+        const { mon, tue, wed, thu, fri, sat, sun } = holidays;
         try {
             await run(`INSERT INTO equipment_holidays (equipment, weekId, mon, tue, wed, thu, fri, sat, sun) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(equipment, weekId) DO UPDATE SET mon=excluded.mon, tue=excluded.tue, wed=excluded.wed, thu=excluded.thu, fri=excluded.fri, sat=excluded.sat, sun=excluded.sun`, [equipment, weekId, mon, tue, wed, thu, fri, sat, sun]);
             res.json({ success: true });
@@ -354,7 +352,7 @@ try {
                     c.alignment = { horizontal: 'left', vertical: 'middle' };
                 });
 
-                const h = { ...(hMap[eq] || {}), sun: 1 };
+                const h = hMap[eq] || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
                 let totalPlan = 0; let activeDays = dayKeys.filter(d => h[d] !== 1).length;
                 const dailySums = {}; dayKeys.forEach(d => dailySums[d] = 0);
 
