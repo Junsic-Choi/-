@@ -849,25 +849,18 @@ if (exportExcelBtn) {
 // Phase 18: Consolidated View Edit Mode Toggles
 
     editModeBtn.onclick = () => {
-        isConsolidatedEditMode = !isConsolidatedEditMode;
+        isConsolidatedEditMode = true;
 
-        if (isConsolidatedEditMode) {
-            editModeBtn.innerHTML = '✏️ 수정 중';
-            editModeBtn.classList.add('btn-secondary');
-            editModeBtn.classList.remove('btn-warning');
-            saveConsolidatedBtn.classList.remove('hidden');
-            if (saveActualsBtn) saveActualsBtn.classList.add('hidden');
-            if (exportExcelBtn) exportExcelBtn.classList.add('hidden');
-            if (btnRefreshConsolidated) btnRefreshConsolidated.classList.add('hidden');
-        } else {
-            editModeBtn.innerHTML = '✏️ 수정 모드';
-            editModeBtn.classList.add('btn-warning');
-            editModeBtn.classList.remove('btn-secondary');
-            saveConsolidatedBtn.classList.add('hidden');
-            if (saveActualsBtn) saveActualsBtn.classList.remove('hidden');
-            if (exportExcelBtn) exportExcelBtn.classList.remove('hidden');
-            if (btnRefreshConsolidated) btnRefreshConsolidated.classList.remove('hidden');
-        }
+        editModeBtn.innerHTML = '✏️ 수정 중';
+        editModeBtn.classList.remove('btn', 'btn-warning');
+        editModeBtn.classList.add('status-badge');
+        editModeBtn.style.pointerEvents = 'none';
+        
+        saveConsolidatedBtn.classList.remove('hidden');
+        if (saveActualsBtn) saveActualsBtn.classList.add('hidden');
+        if (exportExcelBtn) exportExcelBtn.classList.add('hidden');
+        if (btnRefreshConsolidated) btnRefreshConsolidated.classList.add('hidden');
+
         loadConsolidatedPlans();
     };
 
@@ -904,9 +897,12 @@ if (saveConsolidatedBtn) {
             if (json.success) {
                 showToast('계획 변경사항이 저장되었습니다! 🎉');
                 isConsolidatedEditMode = false;
+                
                 editModeBtn.innerHTML = '✏️ 수정 모드';
-                editModeBtn.classList.add('btn-warning');
-                editModeBtn.classList.remove('btn-secondary');
+                editModeBtn.classList.add('btn', 'btn-warning');
+                editModeBtn.classList.remove('status-badge');
+                editModeBtn.style.pointerEvents = 'auto';
+                
                 saveConsolidatedBtn.classList.add('hidden');
                 
                 if (saveActualsBtn) saveActualsBtn.classList.remove('hidden');

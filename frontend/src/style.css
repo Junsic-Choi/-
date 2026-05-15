@@ -504,3 +504,25 @@ input[type="text"]:focus {
 .holiday-btn.active:hover {
     background: #ff7875;
 }
+
+.hidden {
+    display: none !important;
+}
+
+.consolidated-table.edit-active .actual-row {
+    display: none !important;
+}
+
+/* Editing Status Badge */
+.status-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    background-color: #F8FAFC;
+    color: #64748B;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: default;
+    user-select: none;
+}
