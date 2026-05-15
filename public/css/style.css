@@ -653,4 +653,9 @@ input[type="text"]:focus {
 
 .hidden {
     display: none !important;
+}
+
+/* Hide actual rows in edit mode */
+.consolidated-table.edit-active .actual-row {
+    display: none !important;
 }

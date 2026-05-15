@@ -3,6 +3,7 @@ let equipments = [];
 let currentEquipment = null;
 let currentWeekId = getInitialWeekId();
 let currentHolidays = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+let isConsolidatedEditMode = false;
 const LOGS_PER_PAGE = 15;
 let allLogs = [];
 let allActivityLogs = [];
@@ -730,6 +731,7 @@ async function loadConsolidatedPlans() {
 
                     // 2. Actual Row
                     const trAct = document.createElement('tr');
+                    trAct.className = 'actual-row';
                     trAct.innerHTML = `
                         <td></td><td></td><td></td><td></td><td></td><td></td>
                         <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: #EF4444;">실적</td>
@@ -794,7 +796,11 @@ async function loadConsolidatedPlans() {
             consolidatedTableBody.innerHTML = '<tr><td colspan="14" style="text-align:center;">주간 계획이 등록된 데이터가 없습니다.</td></tr>';
         }
 
-        consolidatedTableBody.closest('table').classList.add('consolidated-table');
+        const table = consolidatedTableBody.closest('table');
+        if (table) {
+            table.classList.add('consolidated-table');
+            table.classList.toggle('edit-active', isConsolidatedEditMode);
+        }
 
     } catch (err) {
         console.error(err);
@@ -1183,6 +1189,70 @@ async function exportToExcel() {
 const exportExcelBtn = document.getElementById('exportExcelBtn');
 if (exportExcelBtn) {
     exportExcelBtn.onclick = exportToExcel;
+}
+
+// Phase 18: Consolidated View Edit Mode Toggles
+const editModeBtn = document.getElementById('editModeBtn');
+const saveConsolidatedBtn = document.getElementById('saveConsolidatedBtn');
+
+if (editModeBtn) {
+    editModeBtn.onclick = () => {
+        isConsolidatedEditMode = !isConsolidatedEditMode;
+        if (isConsolidatedEditMode) {
+            editModeBtn.innerHTML = '❌ 취소';
+            saveConsolidatedBtn.classList.remove('hidden');
+        } else {
+            editModeBtn.innerHTML = '✏️ 수정 모드';
+            saveConsolidatedBtn.classList.add('hidden');
+        }
+        loadConsolidatedPlans();
+    };
+}
+
+if (saveConsolidatedBtn) {
+    saveConsolidatedBtn.addEventListener('click', async () => {
+        const inputs = document.querySelectorAll('.cons-plan-input');
+        const updateMap = {};
+
+        inputs.forEach(input => {
+            const id = input.getAttribute('data-id');
+            const day = input.getAttribute('data-day');
+            const val = input.value.trim();
+
+            if (!updateMap[id]) updateMap[id] = { id: id };
+            updateMap[id][day] = val;
+        });
+
+        const updates = Object.values(updateMap);
+        if (updates.length === 0) {
+            isConsolidatedEditMode = false;
+            editModeBtn.innerHTML = '✏️ 수정 모드';
+            saveConsolidatedBtn.classList.add('hidden');
+            loadConsolidatedPlans();
+            return;
+        }
+
+        try {
+            const res = await fetchWithAuth(`${API_BASE}/plans-batch-update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates })
+            });
+            const json = await res.json();
+            if (json.success) {
+                showToast('계획 변경사항이 저장되었습니다! 🎉');
+                isConsolidatedEditMode = false;
+                editModeBtn.innerHTML = '✏️ 수정 모드';
+                saveConsolidatedBtn.classList.add('hidden');
+                loadConsolidatedPlans();
+            } else {
+                alert('저장 실패: ' + (json.error || '알 수 없는 오류'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('네트워크 오류가 발생했습니다.');
+        }
+    });
 }
 
 // Build Layout
