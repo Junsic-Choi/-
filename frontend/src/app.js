@@ -196,6 +196,11 @@ function renderHolidayUI() {
     const btns = document.querySelectorAll('.holiday-btn');
     btns.forEach(btn => {
         const day = btn.getAttribute('data-day');
+        
+        // Reset styles that might have been forced previously
+        btn.style.pointerEvents = 'auto';
+        btn.style.opacity = '1';
+        
         if (currentHolidays[day] === 1) {
             btn.classList.add('active');
         } else {
