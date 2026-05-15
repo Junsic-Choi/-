@@ -196,14 +196,6 @@ function renderHolidayUI() {
     const btns = document.querySelectorAll('.holiday-btn');
     btns.forEach(btn => {
         const day = btn.getAttribute('data-day');
-        // Force Sunday to be active (holiday) and non-interactive
-        if (day === 'sun') {
-            currentHolidays[day] = 1;
-            btn.classList.add('active');
-            btn.style.pointerEvents = 'none';
-            btn.style.opacity = '0.7';
-            return;
-        }
         if (currentHolidays[day] === 1) {
             btn.classList.add('active');
         } else {
@@ -320,9 +312,6 @@ function applyManagerFilter() {
 
 function applyHolidayRestrictions() {
     const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
-
-    // Force Sunday to be a holiday as per user request
-    currentHolidays['sun'] = 1;
 
     // Header cells
     days.forEach(day => {
@@ -576,7 +565,6 @@ async function loadConsolidatedPlans() {
 
                 // Add Daily Plan Totals Row
                 const dailySums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
-                equipmentHolidays.sun = 1; // Force Sunday as holiday for all
                 let totalWeeklyPlan = 0;
                 let activeDaysCount = 0;
                 days.forEach(d => { if (equipmentHolidays[d] !== 1) activeDaysCount++; });
