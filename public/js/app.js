@@ -214,7 +214,6 @@ const saveConsolidatedBtn = document.getElementById('saveConsolidatedBtn');
 const equipmentConsFilter = document.getElementById('equipmentConsFilter');
 const toastEl = document.getElementById('toast');
 
-let isConsolidatedEditMode = false;
 
 // Initialize
 async function init() {
@@ -1192,8 +1191,6 @@ if (exportExcelBtn) {
 }
 
 // Phase 18: Consolidated View Edit Mode Toggles
-const editModeBtn = document.getElementById('editModeBtn');
-const saveConsolidatedBtn = document.getElementById('saveConsolidatedBtn');
 
 if (editModeBtn) {
     editModeBtn.onclick = () => {
