@@ -889,7 +889,7 @@ if (saveConsolidatedBtn) {
 
         try {
             const res = await fetch(`${API_BASE}/plans-batch-update`, {
-                method: 'POST',
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ updates })
             });
