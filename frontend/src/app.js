@@ -514,7 +514,15 @@ async function loadConsolidatedPlans() {
                     // 2. Earliest plan date
                     const getEarliestIndex = (plan) => {
                         for (let i = 0; i < days.length; i++) {
-                            const val = pars                // Render Rows
+                            const val = parseInt(plan[days[i]]) || 0;
+                            if (val > 0) return i;
+                        }
+                        return 999;
+                    };
+                    return getEarliestIndex(a) - getEarliestIndex(b);
+                });
+
+                // Render Rows
                 let eqTotalPlan = 0;
                 let eqTotalActual = 0;
 
