@@ -881,69 +881,6 @@ if (saveActualsBtn) {
     });
 }
 
-// Toggle Consolidated Edit Mode
-editModeBtn.addEventListener('click', () => {
-    isConsolidatedEditMode = !isConsolidatedEditMode;
-    if (isConsolidatedEditMode) {
-        editModeBtn.textContent = '🔓 수정 종료';
-        editModeBtn.classList.remove('btn-warning');
-        editModeBtn.classList.add('btn-secondary');
-        saveConsolidatedBtn.classList.remove('hidden');
-    } else {
-        editModeBtn.textContent = '✏️ 수정 모드';
-        editModeBtn.classList.remove('btn-secondary');
-        editModeBtn.classList.add('btn-warning');
-        saveConsolidatedBtn.classList.add('hidden');
-        loadConsolidatedPlans(); // Refresh to original view
-    }
-    loadConsolidatedPlans();
-});
-
-// Save updated plans from consolidated view
-saveConsolidatedBtn.addEventListener('click', async () => {
-    const inputs = document.querySelectorAll('.cons-plan-input');
-    const updateMap = {};
-
-    inputs.forEach(input => {
-        const id = input.getAttribute('data-id');
-        const day = input.getAttribute('data-day');
-        const val = input.value.trim();
-
-        if (!updateMap[id]) updateMap[id] = { id: id };
-        updateMap[id][day] = val;
-    });
-
-    const updatesArray = Object.values(updateMap);
-
-    if (updatesArray.length === 0) {
-        showToast('변경할 데이터가 없습니다.', 'error');
-        return;
-    }
-
-    try {
-        const res = await fetchWithAuth(`${API_BASE}/plans-batch-update`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ updates: updatesArray })
-        });
-        const json = await res.json();
-
-        if (json.success) {
-            showToast('✅ 계획 수량이 성공적으로 저장되었습니다!');
-            isConsolidatedEditMode = false;
-            editModeBtn.textContent = '✏️ 수정 모드';
-            editModeBtn.classList.remove('btn-secondary');
-            editModeBtn.classList.add('btn-warning');
-            saveConsolidatedBtn.classList.add('hidden');
-            loadConsolidatedPlans();
-        } else {
-            alert('저장 실패: ' + json.error);
-        }
-    } catch (err) {
-        console.error(err);
-        alert('네트워크 오류가 발생했습니다.');
-    }
-});
 
 // Refresh Consolidated View
 document.getElementById('refreshConsolidatedBtn').addEventListener('click', loadConsolidatedPlans);
