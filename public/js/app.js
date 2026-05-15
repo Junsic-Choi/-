@@ -1132,12 +1132,26 @@ if (exportExcelBtn) {
 if (editModeBtn) {
     editModeBtn.onclick = () => {
         isConsolidatedEditMode = !isConsolidatedEditMode;
+        const btnActuals = document.getElementById('saveActualsBtn');
+        const btnExcel = document.getElementById('exportExcelBtn');
+        const btnRefresh = document.getElementById('refreshConsolidatedBtn');
+
         if (isConsolidatedEditMode) {
-            editModeBtn.innerHTML = '❌ 취소';
+            editModeBtn.innerHTML = '✏️ 수정 중';
+            editModeBtn.classList.add('btn-secondary');
+            editModeBtn.classList.remove('btn-warning');
             saveConsolidatedBtn.classList.remove('hidden');
+            if (btnActuals) btnActuals.classList.add('hidden');
+            if (btnExcel) btnExcel.classList.add('hidden');
+            if (btnRefresh) btnRefresh.classList.add('hidden');
         } else {
             editModeBtn.innerHTML = '✏️ 수정 모드';
+            editModeBtn.classList.add('btn-warning');
+            editModeBtn.classList.remove('btn-secondary');
             saveConsolidatedBtn.classList.add('hidden');
+            if (btnActuals) btnActuals.classList.remove('hidden');
+            if (btnExcel) btnExcel.classList.remove('hidden');
+            if (btnRefresh) btnRefresh.classList.remove('hidden');
         }
         loadConsolidatedPlans();
     };
@@ -1177,7 +1191,17 @@ if (saveConsolidatedBtn) {
                 showToast('계획 변경사항이 저장되었습니다! 🎉');
                 isConsolidatedEditMode = false;
                 editModeBtn.innerHTML = '✏️ 수정 모드';
+                editModeBtn.classList.add('btn-warning');
+                editModeBtn.classList.remove('btn-secondary');
                 saveConsolidatedBtn.classList.add('hidden');
+                
+                const btnActuals = document.getElementById('saveActualsBtn');
+                const btnExcel = document.getElementById('exportExcelBtn');
+                const btnRefresh = document.getElementById('refreshConsolidatedBtn');
+                if (btnActuals) btnActuals.classList.remove('hidden');
+                if (btnExcel) btnExcel.classList.remove('hidden');
+                if (btnRefresh) btnRefresh.classList.remove('hidden');
+
                 loadConsolidatedPlans();
             } else {
                 alert('저장 실패: ' + (json.error || '알 수 없는 오류'));
