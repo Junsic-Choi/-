@@ -396,7 +396,7 @@ function renderHolidayUI() {
         btn.style.pointerEvents = 'auto';
         btn.style.opacity = '1';
         
-        if (currentHolidays[day] === 1) {
+        if (Number(currentHolidays[day]) === 1) {
             btn.classList.add('active');
         } else {
             btn.classList.remove('active');
@@ -405,7 +405,7 @@ function renderHolidayUI() {
 }
 
 async function toggleHoliday(day) {
-    currentHolidays[day] = currentHolidays[day] === 1 ? 0 : 1;
+    currentHolidays[day] = Number(currentHolidays[day]) === 1 ? 0 : 1;
     renderHolidayUI();
     try {
         await fetchWithAuth(`${API_BASE}/holidays`, {
