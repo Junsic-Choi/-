@@ -20,6 +20,8 @@ const currentEquipmentTitle = document.getElementById('currentEquipmentTitle');
 const btnRefreshConsolidated = document.getElementById('refreshConsolidatedBtn');
 const editModeBtn = document.getElementById('editModeBtn');
 const saveConsolidatedBtn = document.getElementById('saveConsolidatedBtn');
+const saveActualsBtn = document.getElementById('saveActualsBtn');
+const exportExcelBtn = document.getElementById('exportExcelBtn');
 const toastEl = document.getElementById('toast');
 
 // Initialize
@@ -841,33 +843,28 @@ if (exportExcelBtn) {
 
 // Phase 18: Consolidated View Edit Mode Toggles
 
-if (editModeBtn) {
     editModeBtn.onclick = () => {
         isConsolidatedEditMode = !isConsolidatedEditMode;
-        const btnActuals = document.getElementById('saveActualsBtn');
-        const btnExcel = document.getElementById('exportExcelBtn');
-        const btnRefresh = document.getElementById('refreshConsolidatedBtn');
 
         if (isConsolidatedEditMode) {
             editModeBtn.innerHTML = '✏️ 수정 중';
             editModeBtn.classList.add('btn-secondary');
             editModeBtn.classList.remove('btn-warning');
             saveConsolidatedBtn.classList.remove('hidden');
-            if (btnActuals) btnActuals.classList.add('hidden');
-            if (btnExcel) btnExcel.classList.add('hidden');
-            if (btnRefresh) btnRefresh.classList.add('hidden');
+            if (saveActualsBtn) saveActualsBtn.classList.add('hidden');
+            if (exportExcelBtn) exportExcelBtn.classList.add('hidden');
+            if (btnRefreshConsolidated) btnRefreshConsolidated.classList.add('hidden');
         } else {
             editModeBtn.innerHTML = '✏️ 수정 모드';
             editModeBtn.classList.add('btn-warning');
             editModeBtn.classList.remove('btn-secondary');
             saveConsolidatedBtn.classList.add('hidden');
-            if (btnActuals) btnActuals.classList.remove('hidden');
-            if (btnExcel) btnExcel.classList.remove('hidden');
-            if (btnRefresh) btnRefresh.classList.remove('hidden');
+            if (saveActualsBtn) saveActualsBtn.classList.remove('hidden');
+            if (exportExcelBtn) exportExcelBtn.classList.remove('hidden');
+            if (btnRefreshConsolidated) btnRefreshConsolidated.classList.remove('hidden');
         }
         loadConsolidatedPlans();
     };
-}
 
 if (saveConsolidatedBtn) {
     saveConsolidatedBtn.addEventListener('click', async () => {
@@ -907,12 +904,9 @@ if (saveConsolidatedBtn) {
                 editModeBtn.classList.remove('btn-secondary');
                 saveConsolidatedBtn.classList.add('hidden');
                 
-                const btnActuals = document.getElementById('saveActualsBtn');
-                const btnExcel = document.getElementById('exportExcelBtn');
-                const btnRefresh = document.getElementById('refreshConsolidatedBtn');
-                if (btnActuals) btnActuals.classList.remove('hidden');
-                if (btnExcel) btnExcel.classList.remove('hidden');
-                if (btnRefresh) btnRefresh.classList.remove('hidden');
+                if (saveActualsBtn) saveActualsBtn.classList.remove('hidden');
+                if (exportExcelBtn) exportExcelBtn.classList.remove('hidden');
+                if (btnRefreshConsolidated) btnRefreshConsolidated.classList.remove('hidden');
 
                 loadConsolidatedPlans();
             } else {
