@@ -524,7 +524,7 @@ function applyHolidayRestrictions() {
         const baseLabel = th.dataset.label || th.textContent.split(' ')[0];
         th.dataset.label = baseLabel; // Store for reuse
 
-        if (currentHolidays[day] === 1) {
+        if (Number(currentHolidays[day]) === 1) {
             th.classList.add('holiday-column');
             th.innerHTML = `${baseLabel}<br><span class="holiday-cell-text">(휴무)</span>`;
         } else {
@@ -541,7 +541,7 @@ function applyHolidayRestrictions() {
             if (!input) return;
             const td = input.parentElement;
 
-            if (currentHolidays[day] === 1) {
+            if (Number(currentHolidays[day]) === 1) {
                 td.classList.add('holiday-column');
                 input.disabled = true;
                 input.placeholder = "";
