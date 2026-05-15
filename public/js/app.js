@@ -784,9 +784,15 @@ async function loadConsolidatedPlans() {
 const getCellHtml = (plan, day, equipmentHolidays) => {
     const isHoliday = equipmentHolidays && equipmentHolidays[day] === 1;
     const pStr = plan[day] || '';
-    
+    const aStr = plan[`${day}_act`] || '';
+    const pVal = parseInt(pStr) || 0;
+    const aVal = parseInt(aStr) || 0;
+
+    const isCompleted = pStr !== '' && aVal >= pVal && pVal > 0;
+
     let tdClass = 'grid-cell';
     if (isHoliday) tdClass += ' holiday-column';
+    else if (isCompleted) tdClass += ' completed-cell';
 
     if (isConsolidatedEditMode && !isHoliday) {
         return `<td class="${tdClass}" style="vertical-align: middle; padding: 0;">
@@ -796,8 +802,53 @@ const getCellHtml = (plan, day, equipmentHolidays) => {
 
     return `<td class="${tdClass}" style="vertical-align: middle; text-align: center;">
         <div class="stats-row plan-row center" style="font-weight: 600; font-size: 0.95rem; color: var(--primary); justify-content: center;">${isHoliday ? '' : pStr}</div>
+        <div class="stats-row act-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled' : ''}></div>
     </td>`;
 };
+
+// Phase 7: Save Actuals
+const saveActualsBtn = document.getElementById('saveActualsBtn');
+if (saveActualsBtn) {
+    saveActualsBtn.addEventListener('click', async () => {
+        const inputs = document.querySelectorAll('.act-input');
+        const updateMap = {};
+
+        inputs.forEach(input => {
+            const id = input.getAttribute('data-id');
+            const day = input.getAttribute('data-day');
+            const val = input.value.trim();
+
+            if (!updateMap[id]) updateMap[id] = { id: id };
+            updateMap[id][day] = val;
+        });
+
+        const actualsArray = Object.values(updateMap);
+
+        if (actualsArray.length === 0) {
+            showToast('저장할 실적 데이터가 없습니다.');
+            return;
+        }
+
+        try {
+            const res = await fetchWithAuth(`${API_BASE}/plans-actuals`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ actuals: actualsArray })
+            });
+            const json = await res.json();
+
+            if (json.success) {
+                showToast('✅ 실적 데이터가 성공적으로 저장되었습니다!');
+                loadConsolidatedPlans(); 
+            } else {
+                alert('저장 실패: ' + json.error);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('네트워크 오류가 발생했습니다.');
+        }
+    });
+}
 
 // Toggle Consolidated Edit Mode
 editModeBtn.addEventListener('click', () => {
