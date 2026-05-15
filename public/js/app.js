@@ -840,7 +840,6 @@ const getCellHtml = (plan, day, equipmentHolidays, type) => {
 };
 
 // Phase 7: Save Actuals
-const saveActualsBtn = document.getElementById('saveActualsBtn');
 if (saveActualsBtn) {
     saveActualsBtn.addEventListener('click', async () => {
         const inputs = document.querySelectorAll('.act-input');
@@ -1124,7 +1123,7 @@ async function exportToExcel() {
 }
 
 // 엑셀 추출 버튼 이벤트
-const exportExcelBtn = document.getElementById('exportExcelBtn');
+
 if (exportExcelBtn) {
     exportExcelBtn.onclick = exportToExcel;
 }

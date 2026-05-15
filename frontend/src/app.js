@@ -646,9 +646,6 @@ const getCellHtml = (plan, day, equipmentHolidays, type) => {
             <div class="stats-row act-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled' : ''}></div>
         </td>`;
     }
-};w plan-row center" style="font-weight: 600; font-size: 0.95rem; color: var(--primary); justify-content: center;">${isHoliday ? '' : pStr}</div>
-        <div class="stats-row act-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled' : ''}></div>
-    </td>`;
 };
 
 // Refresh Consolidated View
@@ -836,7 +833,7 @@ async function exportToExcel() {
 }
 
 // 엑셀 추출 버튼 이벤트
-const exportExcelBtn = document.getElementById('exportExcelBtn');
+
 if (exportExcelBtn) {
     exportExcelBtn.onclick = exportToExcel;
 }
