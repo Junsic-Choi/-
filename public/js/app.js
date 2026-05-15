@@ -671,7 +671,7 @@ async function loadConsolidatedPlans() {
             });
 
             if (orderedEquipment.length === 0) {
-                consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">조건에 맞는 주간 계획이 없습니다.</td></tr>';
+                consolidatedTableBody.innerHTML = '<tr><td colspan="14" style="text-align:center;">조건에 맞는 주간 계획이 없습니다.</td></tr>';
                 return;
             }
 
@@ -685,7 +685,7 @@ async function loadConsolidatedPlans() {
                 // Render Group Header
                 const headerTr = document.createElement('tr');
                 headerTr.className = 'group-header';
-                headerTr.innerHTML = `<td colspan="13" style="text-align: left; padding-left: 1.5rem;">${eq}</td>`;
+                headerTr.innerHTML = `<td colspan="14" style="text-align: left; padding-left: 1.5rem;">${eq}</td>`;
                 fragment.appendChild(headerTr);
 
                 // Sort activePlans

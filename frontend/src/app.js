@@ -496,7 +496,7 @@ async function loadConsolidatedPlans() {
                 // Render Group Header
                 const headerTr = document.createElement('tr');
                 headerTr.className = 'group-header';
-                headerTr.innerHTML = `<td colspan="13">${eq} (총 실적률: ${rate}%)</td>`;
+                headerTr.innerHTML = `<td colspan="14">${eq} (총 실적률: ${rate}%)</td>`;
                 fragment.appendChild(headerTr);
 
                 // Sort activePlans: 1. Manager, 2. Earliest day with a plan
