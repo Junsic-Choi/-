@@ -5,6 +5,14 @@ let currentHolidays = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 }
 let isConsolidatedEditMode = false;
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+// Auth Helper
+function fetchWithAuth(url, options = {}) {
+    const token = localStorage.getItem('mps_auth_token');
+    if (!options.headers) options.headers = {};
+    if (token) options.headers['Authorization'] = `Bearer ${token}`;
+    return fetch(url, options);
+}
+
 // DOM Elements
 const equipmentTabs = document.getElementById('equipmentTabs');
 const weekPicker = document.getElementById('weekPicker');
@@ -75,7 +83,7 @@ let managerEquipmentMap = {};
 // Fetch Equipments List
 async function fetchEquipments() {
     try {
-        const res = await fetch(`${API_BASE}/equipments`);
+        const res = await fetchWithAuth(`${API_BASE}/equipments`);
         const json = await res.json();
         if (json.success) {
             equipments = json.data;
@@ -94,7 +102,7 @@ async function refreshManagerFilterAndTabs() {
 
     try {
         // 1. Fetch ALL managers globally to ensure dropdown is never empty
-        const mRes = await fetch(`${API_BASE}/managers`);
+        const mRes = await fetchWithAuth(`${API_BASE}/managers`);
         if (mRes.ok) {
             const mJson = await mRes.json();
             if (mJson.success && Array.isArray(mJson.data)) {
@@ -105,7 +113,7 @@ async function refreshManagerFilterAndTabs() {
         }
 
         // 2. Fetch current week for mapping (enables equipment filtering)
-        const res = await fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+        const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
         if (res.ok) {
             const json = await res.json();
             if (json.success && Array.isArray(json.data)) {
@@ -171,7 +179,7 @@ function selectEquipment(equipment) {
 // Phase 18: Holiday Management Logic
 async function fetchHolidays(equipment) {
     try {
-        const res = await fetch(`${API_BASE}/holidays/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
+        const res = await fetchWithAuth(`${API_BASE}/holidays/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
         if (json.success && json.data) {
             currentHolidays = json.data;
@@ -208,7 +216,7 @@ async function toggleHoliday(day) {
     currentHolidays[day] = currentHolidays[day] === 1 ? 0 : 1;
     renderHolidayUI();
     try {
-        await fetch(`${API_BASE}/holidays`, {
+        await fetchWithAuth(`${API_BASE}/holidays`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -248,7 +256,7 @@ async function loadPlans(equipment) {
     await fetchHolidays(equipment);
 
     try {
-        const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
+        const res = await fetchWithAuth(`${API_BASE}/plans/${encodeURIComponent(equipment)}/${encodeURIComponent(currentWeekId)}`);
         const json = await res.json();
         planTableBody.innerHTML = '';
 
@@ -412,7 +420,7 @@ btnSave.addEventListener('click', async () => {
     }
 
     try {
-        const res = await fetch(`${API_BASE}/plans/${encodeURIComponent(currentEquipment)}/${encodeURIComponent(currentWeekId)}`, {
+        const res = await fetchWithAuth(`${API_BASE}/plans/${encodeURIComponent(currentEquipment)}/${encodeURIComponent(currentWeekId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ plans: plansToSave })
@@ -436,8 +444,8 @@ async function loadConsolidatedPlans() {
     try {
         // Parallelize fetches for better performance
         const [res, hRes] = await Promise.all([
-            fetch(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`),
-            fetch(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`)
+            fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`),
+            fetchWithAuth(`${API_BASE}/holidays-all/${encodeURIComponent(currentWeekId)}`)
         ]);
 
         const json = await res.json();
@@ -681,7 +689,7 @@ document.getElementById('saveActualsBtn').addEventListener('click', async () => 
     }
 
     try {
-        const res = await fetch(`${API_BASE}/plans-actuals`, {
+        const res = await fetchWithAuth(`${API_BASE}/plans-actuals`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ actuals: actualsArray })
@@ -888,7 +896,7 @@ if (saveConsolidatedBtn) {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/plans-batch-update`, {
+            const res = await fetchWithAuth(`${API_BASE}/plans-batch-update`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ updates })
