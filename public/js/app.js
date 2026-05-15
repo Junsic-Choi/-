@@ -704,10 +704,15 @@ async function loadConsolidatedPlans() {
                 });
 
                 // Render Rows
+                let eqTotalPlan = 0;
+                let eqTotalActual = 0;
+
                 activePlans.forEach(plan => {
                     const isUrgent = plan.urgentStatus === 'URGENT';
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
+                    
+                    // 1. Plan Row
+                    const trPlan = document.createElement('tr');
+                    trPlan.innerHTML = `
                         <td><strong>${plan.equipment}</strong></td>
                         <td>${plan.manager}</td>
                         <td>${plan.model}</td>
@@ -718,15 +723,27 @@ async function loadConsolidatedPlans() {
                         <td class="importance-cell">
                             ${isUrgent ? '<span class="importance-star">*</span>' : ''}
                         </td>
-                        ${getCellHtml(plan, 'fri', equipmentHolidays)}
-                        ${getCellHtml(plan, 'sat', equipmentHolidays)}
-                        ${getCellHtml(plan, 'sun', equipmentHolidays)}
-                        ${getCellHtml(plan, 'mon', equipmentHolidays)}
-                        ${getCellHtml(plan, 'tue', equipmentHolidays)}
-                        ${getCellHtml(plan, 'wed', equipmentHolidays)}
-                        ${getCellHtml(plan, 'thu', equipmentHolidays)}
+                        <td class="type-cell" style="background-color: #F1F5F9; font-weight: 700; color: #1E3A8A;">계획</td>
+                        ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'plan')).join('')}
                     `;
-                    fragment.appendChild(tr);
+                    fragment.appendChild(trPlan);
+
+                    // 2. Actual Row
+                    const trAct = document.createElement('tr');
+                    trAct.innerHTML = `
+                        <td></td><td></td><td></td><td></td><td></td><td></td>
+                        <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: #EF4444;">실적</td>
+                        ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'act')).join('')}
+                    `;
+                    fragment.appendChild(trAct);
+
+                    // Accumulate totals for achievement rate
+                    days.forEach(d => {
+                        if (equipmentHolidays[d] !== 1) {
+                            eqTotalPlan += (parseInt(plan[d]) || 0);
+                            eqTotalActual += (parseInt(plan[`${d}_act`]) || 0);
+                        }
+                    });
                 });
 
                 // Add Daily Plan Totals Row
@@ -746,10 +763,14 @@ async function loadConsolidatedPlans() {
                 });
 
                 const averagePerDay = activeDaysCount > 0 ? (totalWeeklyPlan / activeDaysCount) : 0;
+                const achievementRate = eqTotalPlan > 0 ? Math.round((eqTotalActual / eqTotalPlan) * 100) : 0;
+
                 const totalRow = document.createElement('tr');
                 totalRow.className = 'group-total-row';
 
-                let totalRowHtml = `<td colspan="6" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">[${eq}] 일별 계획 합계</td>`;
+                let totalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">
+                    [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #EF4444;">(총 실적 달성률: ${achievementRate}%)</span>
+                </td>`;
                 days.forEach(d => {
                     if (equipmentHolidays[d] === 1) {
                         totalRowHtml += `<td class="grid-cell center holiday-column" style="vertical-align: middle; font-weight: bold; color: #1E3A8A;">
@@ -770,18 +791,18 @@ async function loadConsolidatedPlans() {
             consolidatedTableBody.innerHTML = '';
             consolidatedTableBody.appendChild(fragment);
         } else {
-            consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">주간 계획이 등록된 데이터가 없습니다.</td></tr>';
+            consolidatedTableBody.innerHTML = '<tr><td colspan="14" style="text-align:center;">주간 계획이 등록된 데이터가 없습니다.</td></tr>';
         }
 
         consolidatedTableBody.closest('table').classList.add('consolidated-table');
 
     } catch (err) {
         console.error(err);
-        consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
+        consolidatedTableBody.innerHTML = '<tr><td colspan="14" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
     }
 }
 
-const getCellHtml = (plan, day, equipmentHolidays) => {
+const getCellHtml = (plan, day, equipmentHolidays, type) => {
     const isHoliday = equipmentHolidays && equipmentHolidays[day] === 1;
     const pStr = plan[day] || '';
     const aStr = plan[`${day}_act`] || '';
@@ -794,16 +815,21 @@ const getCellHtml = (plan, day, equipmentHolidays) => {
     if (isHoliday) tdClass += ' holiday-column';
     else if (isCompleted) tdClass += ' completed-cell';
 
-    if (isConsolidatedEditMode && !isHoliday) {
-        return `<td class="${tdClass}" style="vertical-align: middle; padding: 0;">
-            <input type="text" class="cons-plan-input" data-id="${plan.id}" data-day="${day}" value="${pStr}" maxlength="2" style="width: 100%; height: 100%; border: none; text-align: center; background: transparent; font-size: 1rem; font-weight: 600; color: var(--primary);">
+    if (type === 'plan') {
+        if (isConsolidatedEditMode && !isHoliday) {
+            return `<td class="${tdClass}" style="vertical-align: middle; padding: 0;">
+                <input type="text" class="cons-plan-input" data-id="${plan.id}" data-day="${day}" value="${pStr}" maxlength="2" style="width: 100%; height: 100%; border: none; text-align: center; background: transparent; font-size: 1rem; font-weight: 600; color: var(--primary);">
+            </td>`;
+        }
+        return `<td class="${tdClass}" style="vertical-align: middle; text-align: center;">
+            <div class="stats-row plan-row center" style="font-weight: 600; font-size: 0.95rem; color: var(--primary); justify-content: center;">${isHoliday ? '' : pStr}</div>
+        </td>`;
+    } else {
+        // Actual Row
+        return `<td class="${tdClass}" style="vertical-align: middle; text-align: center;">
+            <div class="stats-row act-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled' : ''}></div>
         </td>`;
     }
-
-    return `<td class="${tdClass}" style="vertical-align: middle; text-align: center;">
-        <div class="stats-row plan-row center" style="font-weight: 600; font-size: 0.95rem; color: var(--primary); justify-content: center;">${isHoliday ? '' : pStr}</div>
-        <div class="stats-row act-row"><input type="text" class="act-input" data-id="${plan.id}" data-day="${day}_act" value="${aStr}" maxlength="2" ${isHoliday ? 'disabled' : ''}></div>
-    </td>`;
 };
 
 // Phase 7: Save Actuals
