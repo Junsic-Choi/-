@@ -364,7 +364,7 @@ try {
             ISOweekStart.setDate(ISOweekStart.getDate() - 3);
 
             const korDays = ['금', '토', '일', '월', '화', '수', '목'];
-            const headers = ['NO', '담당자', '기종', '품명', '품번', '중요도'];
+            const headers = ['NO', '담당자', '기종', '품명', '품번', '표준시간'];
             for (let i = 0; i < 7; i++) {
                 const d = new Date(ISOweekStart); d.setDate(ISOweekStart.getDate() + i);
                 headers.push(`${korDays[i]}(${d.getMonth() + 1}/${d.getDate()})`);
@@ -424,7 +424,7 @@ try {
 
                 activePlans.forEach((p, idx) => {
                     const isUrgent = p.urgentStatus === 'URGENT';
-                    const planVals = [idx + 1, p.manager, p.model, p.partName, p.partNo, isUrgent ? '*' : ''];
+                    const planVals = [idx + 1, p.manager, p.model, p.partName, isUrgent ? `${p.partNo} *` : p.partNo, p.standardTime ? `${p.standardTime}분` : '미등록'];
                     dayKeys.forEach(d => {
                         const isHoliday = h[d] === 1;
                         const pVal = isHoliday ? '' : (p[d] || '');
@@ -438,8 +438,8 @@ try {
                     r1.eachCell((c, col) => {
                         c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
                         c.alignment = { horizontal: 'center', vertical: 'middle' };
-                        if (col === 6 && isUrgent) {
-                            c.font = { bold: true, color: { argb: 'FF10B981' }, size: 14 };
+                        if (col === 5 && isUrgent) {
+                            c.font = { bold: true, color: { argb: 'FFFF0000' } };
                         }
                         if (col > 6) {
                             c.font = { bold: true, color: { argb: 'FF1E3A8A' } };

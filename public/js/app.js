@@ -705,6 +705,19 @@ async function loadConsolidatedPlans() {
                 activePlans.forEach(plan => {
                     const isUrgent = plan.urgentStatus === 'URGENT';
                     
+                    let stdTimeInner = `
+                        <button onclick="quickRegisterStdTime('${plan.equipment}', '${plan.partNo}', '${(plan.partName || '').replace(/'/g, "\\'")}')" style="background-color: #FEF3C7; color: #D97706; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem; border: 1px dashed #F59E0B; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#FDE68A'" onmouseout="this.style.backgroundColor='#FEF3C7'" title="표준시간 미등록 - 클릭하여 즉시 등록">
+                            ⚠️ 미등록
+                        </button>
+                    `;
+                    if (plan.standardTime) {
+                        stdTimeInner = `
+                            <span style="background-color: #F8FAFC; color: #475569; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.8rem; border: 1px solid #CBD5E1; display: inline-block;">
+                                ${plan.standardTime}분
+                            </span>
+                        `;
+                    }
+
                     // 1. Plan Row
                     const trPlan = document.createElement('tr');
                     trPlan.innerHTML = `
@@ -712,11 +725,12 @@ async function loadConsolidatedPlans() {
                         <td>${plan.manager}</td>
                         <td>${plan.model}</td>
                         <td>${plan.partName}</td>
-                        <td class="part-no-cell" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')">
-                            <span class="part-no-text">${plan.partNo}</span>
+                        <td class="part-no-cell" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')" style="cursor: pointer; position: relative;">
+                            <span class="part-no-text" style="font-weight: 600;">${plan.partNo}</span>
+                            ${isUrgent ? '<span class="importance-star" style="color: #EF4444; font-weight: bold; margin-left: 4px; font-size: 1.1rem; vertical-align: middle;">*</span>' : ''}
                         </td>
-                        <td class="importance-cell">
-                            ${isUrgent ? '<span class="importance-star">*</span>' : ''}
+                        <td style="text-align: center; vertical-align: middle; padding: 2px;">
+                            ${stdTimeInner}
                         </td>
                         <td class="type-cell" style="background-color: #F1F5F9; font-weight: 700; color: #1E3A8A;">계획</td>
                         ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'plan')).join('')}
@@ -726,27 +740,9 @@ async function loadConsolidatedPlans() {
                     // 2. Actual Row
                     const trAct = document.createElement('tr');
                     trAct.className = 'actual-row';
-                    
-                    let stdTimeHtml = `
-                        <td style="text-align: center; vertical-align: middle; padding: 2px;">
-                            <button onclick="quickRegisterStdTime('${plan.equipment}', '${plan.partNo}', '${(plan.partName || '').replace(/'/g, "\\'")}')" style="background-color: #FEF3C7; color: #D97706; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem; border: 1px dashed #F59E0B; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#FDE68A'" onmouseout="this.style.backgroundColor='#FEF3C7'" title="표준시간 미등록 - 클릭하여 즉시 등록">
-                                ⚠️ 미등록
-                            </button>
-                        </td>
-                    `;
-                    if (plan.standardTime) {
-                        stdTimeHtml = `
-                            <td style="text-align: center; vertical-align: middle; padding: 2px;">
-                                <span style="background-color: #F8FAFC; color: #475569; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.8rem; border: 1px solid #CBD5E1; display: inline-block;">
-                                    ${plan.standardTime}분
-                                </span>
-                            </td>
-                        `;
-                    }
-
                     trAct.innerHTML = `
                         <td></td><td></td><td></td><td></td>
-                        ${stdTimeHtml}
+                        <td></td>
                         <td></td>
                         <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: #EF4444;">실적</td>
                         ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'act')).join('')}
