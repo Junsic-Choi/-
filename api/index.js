@@ -240,17 +240,31 @@ try {
                 });
             });
 
-            // Future weeks synchronization
-            const futureWeeks = await all(`SELECT DISTINCT weekId FROM plans WHERE equipment = ? AND weekId > ? ORDER BY weekId ASC`, [equipment, weekId]);
-            for (const fw of futureWeeks) {
-                const targetWeek = fw.weekId;
-                const targetRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ?`, [equipment, targetWeek]);
+            // Future weeks carryover synchronization (Optimized: 1 Single Database Select!)
+            const futureWeeksRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId > ?`, [equipment, weekId]);
+            
+            // Group by weekId in memory
+            const futureWeeksMap = {};
+            futureWeeksRows.forEach(row => {
+                if (!futureWeeksMap[row.weekId]) {
+                    futureWeeksMap[row.weekId] = [];
+                }
+                futureWeeksMap[row.weekId].push(row);
+            });
+            
+            // Generate batch instructions in memory
+            for (const targetWeek in futureWeeksMap) {
+                const targetRows = futureWeeksMap[targetWeek];
                 batch.push({ sql: `DELETE FROM plans WHERE equipment = ? AND weekId = ?`, args: [equipment, targetWeek] });
                 plans.forEach(p => {
                     const existing = targetRows.find(tr => tr.partNo === p.partNo && tr.partName === p.partName && tr.model === p.model);
                     batch.push({
                         sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        args: [equipment, targetWeek, p.manager || "", p.model || "", p.partName || "", p.partNo || "", existing ? existing.mon : "", existing ? existing.tue : "", existing ? existing.wed : "", existing ? existing.thu : "", existing ? existing.fri : "", existing ? existing.sat : "", existing ? existing.sun : "", existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""]
+                        args: [
+                            equipment, targetWeek, p.manager || "", p.model || "", p.partName || "", p.partNo || "",
+                            existing ? existing.mon : "", existing ? existing.tue : "", existing ? existing.wed : "", existing ? existing.thu : "", existing ? existing.fri : "", existing ? existing.sat : "", existing ? existing.sun : "",
+                            existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""
+                        ]
                     });
                 });
             }
