@@ -727,7 +727,13 @@ async function loadConsolidatedPlans() {
                     const trAct = document.createElement('tr');
                     trAct.className = 'actual-row';
                     
-                    let stdTimeHtml = '<td></td>';
+                    let stdTimeHtml = `
+                        <td style="text-align: center; vertical-align: middle; padding: 2px;">
+                            <button onclick="quickRegisterStdTime('${plan.equipment}', '${plan.partNo}', '${(plan.partName || '').replace(/'/g, "\\'")}')" style="background-color: #FEF3C7; color: #D97706; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.75rem; border: 1px dashed #F59E0B; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#FDE68A'" onmouseout="this.style.backgroundColor='#FEF3C7'" title="표준시간 미등록 - 클릭하여 즉시 등록">
+                                ⚠️ 미등록
+                            </button>
+                        </td>
+                    `;
                     if (plan.standardTime) {
                         stdTimeHtml = `
                             <td style="text-align: center; vertical-align: middle; padding: 2px;">
@@ -1421,6 +1427,24 @@ async function deleteStandardTime(equipment, partNo) {
         console.error("Error deleting standard time", err);
         alert('서버 오류로 삭제하지 못했습니다.');
     }
+}
+
+async function quickRegisterStdTime(equipment, partNo, partName) {
+    // 1. Open standard time modal
+    await openStandardTimeModal();
+    
+    // 2. Open registration form
+    openAddStandardTimeForm();
+    
+    // 3. Fill in values automatically
+    document.getElementById('formStdEquip').value = equipment;
+    document.getElementById('formStdPartNo').value = partNo;
+    document.getElementById('formStdPartName').value = partName;
+    
+    // 4. Focus on standard time input field
+    setTimeout(() => {
+        document.getElementById('formStdTime').focus();
+    }, 150);
 }
 
 // Build Layout
