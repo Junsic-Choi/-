@@ -154,71 +154,77 @@ try {
                 PRIMARY KEY (equipment, partNo)
             )`);
 
-            // Populate/update standard_times table from '정삭 실적.xlsx' if the file exists
+            // Check if standard_times is already populated
+            const countResult = await get(`SELECT COUNT(*) as count FROM standard_times`);
+            const stdCount = countResult ? countResult.count : 0;
+
+            // Populate standard_times table from '정삭 실적.xlsx' ONLY if it is completely empty
             const filePath = path.resolve(__dirname, '../정삭 실적.xlsx');
-            if (fs.existsSync(filePath)) {
-                console.log('Importing/updating standard times from "정삭 실적.xlsx"...');
-                const workbook = new ExcelJS.Workbook();
-                await workbook.xlsx.readFile(filePath);
-                
-                const data = {};
-                const partNames = {};
+            if (stdCount === 0) {
+                if (fs.existsSync(filePath)) {
+                    console.log('standard_times is empty. Importing initial standard times from "정삭 실적.xlsx"...');
+                    const workbook = new ExcelJS.Workbook();
+                    await workbook.xlsx.readFile(filePath);
+                    
+                    const data = {};
+                    const partNames = {};
 
-                workbook.worksheets.forEach(sheet => {
-                    const sheetName = sheet.name.trim();
-                    data[sheetName] = {};
+                    workbook.worksheets.forEach(sheet => {
+                        const sheetName = sheet.name.trim();
+                        data[sheetName] = {};
 
-                    sheet.eachRow((row, rowNum) => {
-                        if (rowNum === 1) return; // Skip header
+                        sheet.eachRow((row, rowNum) => {
+                            if (rowNum === 1) return; // Skip header
 
-                        const partNo = row.getCell(4).value;
-                        const partName = row.getCell(6).value;
-                        const opSeq = row.getCell(10).value;
-                        let stdTime = row.getCell(16).value;
+                            const partNo = row.getCell(4).value;
+                            const partName = row.getCell(6).value;
+                            const opSeq = row.getCell(10).value;
+                            let stdTime = row.getCell(16).value;
 
-                        if (stdTime && typeof stdTime === 'object' && stdTime.result !== undefined) {
-                            stdTime = stdTime.result;
-                        }
+                            if (stdTime && typeof stdTime === 'object' && stdTime.result !== undefined) {
+                                stdTime = stdTime.result;
+                            }
 
-                        if (!partNo || stdTime === null || stdTime === undefined || stdTime === '') return;
+                            if (!partNo || stdTime === null || stdTime === undefined || stdTime === '') return;
 
-                        const cleanPartNo = String(partNo).trim();
-                        const cleanPartName = String(partName).trim();
-                        const cleanOpSeq = String(opSeq).trim();
-                        const numStdTime = Number(stdTime);
+                            const cleanPartNo = String(partNo).trim();
+                            const cleanPartName = String(partName).trim();
+                            const cleanOpSeq = String(opSeq).trim();
+                            const numStdTime = Number(stdTime);
 
-                        partNames[cleanPartNo] = cleanPartName;
+                            partNames[cleanPartNo] = cleanPartName;
 
-                        if (!data[sheetName][cleanPartNo]) {
-                            data[sheetName][cleanPartNo] = {};
-                        }
-                        data[sheetName][cleanPartNo][cleanOpSeq] = numStdTime;
-                    });
-                });
-
-                const batch = [];
-                batch.push({ sql: `DELETE FROM standard_times`, args: [] });
-                
-                for (const sheetName in data) {
-                    for (const partNo in data[sheetName]) {
-                        const ops = data[sheetName][partNo];
-                        let totalStdTime = 0;
-                        for (const opSeq in ops) {
-                            totalStdTime += ops[opSeq];
-                        }
-                        batch.push({
-                            sql: `INSERT INTO standard_times (equipment, partNo, partName, stdTime) VALUES (?, ?, ?, ?)`,
-                            args: [sheetName, partNo, partNames[partNo] || 'Unknown', totalStdTime]
+                            if (!data[sheetName][cleanPartNo]) {
+                                data[sheetName][cleanPartNo] = {};
+                            }
+                            data[sheetName][cleanPartNo][cleanOpSeq] = numStdTime;
                         });
-                    }
-                }
+                    });
 
-                if (batch.length > 0) {
-                    await client.batch(batch, 'write');
-                    console.log(`Successfully synchronized ${batch.length - 1} standard times in database!`);
+                    const batch = [];
+                    for (const sheetName in data) {
+                        for (const partNo in data[sheetName]) {
+                            const ops = data[sheetName][partNo];
+                            let totalStdTime = 0;
+                            for (const opSeq in ops) {
+                                totalStdTime += ops[opSeq];
+                            }
+                            batch.push({
+                                sql: `INSERT INTO standard_times (equipment, partNo, partName, stdTime) VALUES (?, ?, ?, ?)`,
+                                args: [sheetName, partNo, partNames[partNo] || 'Unknown', totalStdTime]
+                            });
+                        }
+                    }
+
+                    if (batch.length > 0) {
+                        await client.batch(batch, 'write');
+                        console.log(`Successfully bootstrapped ${batch.length} standard times in database!`);
+                    }
+                } else {
+                    console.warn(`Excel file not found at: ${filePath}, skipping initial standard times bootstrapping.`);
                 }
             } else {
-                console.warn(`Excel file not found at: ${filePath}, skipping standard times synchronization.`);
+                console.log(`[DB_INIT] standard_times table already has ${stdCount} rows. Skipping Excel import to protect user-registered master data.`);
             }
 
             console.log('Database initialization completed successfully.');
