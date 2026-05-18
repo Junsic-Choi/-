@@ -145,6 +145,82 @@ try {
             await run(`UPDATE plans SET equipment = 'HSP8000 #1' WHERE equipment = 'HSP8000'`);
             await run(`UPDATE plans SET equipment = 'HSP8000 #2' WHERE equipment = '#2'`);
             
+            // Create standard_times table
+            await run(`CREATE TABLE IF NOT EXISTS standard_times (
+                equipment TEXT NOT NULL,
+                partNo TEXT NOT NULL,
+                partName TEXT,
+                stdTime INTEGER NOT NULL,
+                PRIMARY KEY (equipment, partNo)
+            )`);
+
+            // Populate/update standard_times table from '정삭 실적.xlsx' if the file exists
+            const filePath = path.resolve(__dirname, '../정삭 실적.xlsx');
+            if (fs.existsSync(filePath)) {
+                console.log('Importing/updating standard times from "정삭 실적.xlsx"...');
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.readFile(filePath);
+                
+                const data = {};
+                const partNames = {};
+
+                workbook.worksheets.forEach(sheet => {
+                    const sheetName = sheet.name.trim();
+                    data[sheetName] = {};
+
+                    sheet.eachRow((row, rowNum) => {
+                        if (rowNum === 1) return; // Skip header
+
+                        const partNo = row.getCell(4).value;
+                        const partName = row.getCell(6).value;
+                        const opSeq = row.getCell(10).value;
+                        let stdTime = row.getCell(16).value;
+
+                        if (stdTime && typeof stdTime === 'object' && stdTime.result !== undefined) {
+                            stdTime = stdTime.result;
+                        }
+
+                        if (!partNo || stdTime === null || stdTime === undefined || stdTime === '') return;
+
+                        const cleanPartNo = String(partNo).trim();
+                        const cleanPartName = String(partName).trim();
+                        const cleanOpSeq = String(opSeq).trim();
+                        const numStdTime = Number(stdTime);
+
+                        partNames[cleanPartNo] = cleanPartName;
+
+                        if (!data[sheetName][cleanPartNo]) {
+                            data[sheetName][cleanPartNo] = {};
+                        }
+                        data[sheetName][cleanPartNo][cleanOpSeq] = numStdTime;
+                    });
+                });
+
+                const batch = [];
+                batch.push({ sql: `DELETE FROM standard_times`, args: [] });
+                
+                for (const sheetName in data) {
+                    for (const partNo in data[sheetName]) {
+                        const ops = data[sheetName][partNo];
+                        let totalStdTime = 0;
+                        for (const opSeq in ops) {
+                            totalStdTime += ops[opSeq];
+                        }
+                        batch.push({
+                            sql: `INSERT INTO standard_times (equipment, partNo, partName, stdTime) VALUES (?, ?, ?, ?)`,
+                            args: [sheetName, partNo, partNames[partNo] || 'Unknown', totalStdTime]
+                        });
+                    }
+                }
+
+                if (batch.length > 0) {
+                    await client.batch(batch, 'write');
+                    console.log(`Successfully synchronized ${batch.length - 1} standard times in database!`);
+                }
+            } else {
+                console.warn(`Excel file not found at: ${filePath}, skipping standard times synchronization.`);
+            }
+
             console.log('Database initialization completed successfully.');
         } catch (dbErr) {
             console.error('Database initialization failed:', dbErr);
@@ -217,10 +293,20 @@ try {
     app.get('/api/plans/:equipment/:weekId', async (req, res) => {
         const { equipment, weekId } = req.params;
         try {
-            const rows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? ORDER BY id ASC`, [equipment, weekId]);
+            const sql = `
+                SELECT p.*, s.stdTime as standardTime FROM plans p
+                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
+                WHERE p.equipment = ? AND p.weekId = ? ORDER BY p.id ASC
+            `;
+            const rows = await all(sql, [equipment, weekId]);
             if (rows.length > 0) return res.json({ success: true, data: rows });
 
-            const pastRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId <= ? ORDER BY weekId DESC LIMIT 20`, [equipment, weekId]);
+            const pastSql = `
+                SELECT p.*, s.stdTime as standardTime FROM plans p
+                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
+                WHERE p.equipment = ? AND p.weekId <= ? ORDER BY p.weekId DESC LIMIT 20
+            `;
+            const pastRows = await all(pastSql, [equipment, weekId]);
             if (pastRows.length > 0) {
                 const mostRecentWeekId = pastRows[0].weekId;
                 const latestWeekRows = pastRows.filter(r => r.weekId === mostRecentWeekId);
@@ -287,9 +373,10 @@ try {
         const { weekId } = req.params;
         try {
             const sql = `
-                SELECT p.* FROM plans p
+                SELECT p.*, s.stdTime as standardTime FROM plans p
                 INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest 
                 ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek
+                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
             `;
             const rows = await all(sql, [weekId]);
             const processed = rows.map(row => row.weekId === weekId ? row : { ...row, id: undefined, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });

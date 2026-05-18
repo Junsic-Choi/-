@@ -24,3 +24,9 @@ task.md
 *.vsix
 ReadMe.md
 .git/
+
+# Scratch & DB backups
+scratch/
+turso_production_backup.sqlite
+turso_production_backup.sql
+~$*.xlsx

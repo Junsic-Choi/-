@@ -552,8 +552,22 @@ async function loadConsolidatedPlans() {
                     // 2. Actual Row
                     const trAct = document.createElement('tr');
                     trAct.className = 'actual-row';
+                    
+                    let stdTimeHtml = '<td></td>';
+                    if (plan.standardTime) {
+                        stdTimeHtml = `
+                            <td style="text-align: center; vertical-align: middle; padding: 2px;">
+                                <span style="background-color: #F8FAFC; color: #475569; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.8rem; border: 1px solid #CBD5E1; display: inline-block;">
+                                    ${plan.standardTime}분
+                                </span>
+                            </td>
+                        `;
+                    }
+
                     trAct.innerHTML = `
-                        <td></td><td></td><td></td><td></td><td></td><td></td>
+                        <td></td><td></td><td></td><td></td>
+                        ${stdTimeHtml}
+                        <td></td>
                         <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: #EF4444;">실적</td>
                         ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'act')).join('')}
                     `;
