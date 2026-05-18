@@ -163,9 +163,19 @@ try {
     app.get('/api/plans/:equipment/:weekId', async (req, res) => {
         const { equipment, weekId } = req.params;
         try {
-            const rows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? ORDER BY id ASC`, [equipment, weekId]);
+            const rows = await all(`
+                SELECT p.*, s.stdTime as standardTime FROM plans p
+                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
+                WHERE p.equipment = ? AND p.weekId = ?
+                ORDER BY p.id ASC
+            `, [equipment, weekId]);
             if (rows.length > 0) return res.json({ success: true, data: rows });
-            const pastRows = await all(`SELECT * FROM plans WHERE equipment = ? AND weekId <= ? ORDER BY weekId DESC LIMIT 20`, [equipment, weekId]);
+            const pastRows = await all(`
+                SELECT p.*, s.stdTime as standardTime FROM plans p
+                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
+                WHERE p.equipment = ? AND p.weekId <= ?
+                ORDER BY p.weekId DESC LIMIT 20
+            `, [equipment, weekId]);
             if (pastRows.length > 0) {
                 const mostRecentWeekId = pastRows[0].weekId;
                 const latestWeekRows = pastRows.filter(r => r.weekId === mostRecentWeekId);
@@ -251,7 +261,12 @@ try {
     app.get('/api/plans-consolidated/:weekId', async (req, res) => {
         const { weekId } = req.params;
         try {
-            const sql = `SELECT p.* FROM plans p INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek`;
+            const sql = `
+                SELECT p.*, s.stdTime as standardTime FROM plans p
+                INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest 
+                ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek
+                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
+            `;
             const rows = await all(sql, [weekId]);
             const processed = rows.map(row => row.weekId === weekId ? row : { ...row, id: undefined, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });
             const consolidatedData = [];
