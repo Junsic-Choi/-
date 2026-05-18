@@ -37,9 +37,90 @@
     <div class="app-container">
         <header>
         <div class="user-actions" style="position: absolute; top: 1rem; right: 1rem; display: flex; gap: 0.5rem; z-index: 10000;">
+            <button onclick="openStandardTimeModal()" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; opacity: 0.9; background-color: #10B981; font-weight: 600;">⏱️ 표준시간 마스터 관리</button>
             <button onclick="viewActivityLogs()" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; opacity: 0.8; background-color: #E67E22;">활동 로그 확인</button>
             <button onclick="viewLogs()" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; opacity: 0.8; background-color: #64748B;">접속 로그 확인</button>
             <button onclick="logout()" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; opacity: 0.8;">로그아웃</button>
+        </div>
+
+        <!-- Standard Time Master Modal -->
+        <div id="standardTimeModal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 20000; display: flex; align-items: center; justify-content: center;">
+            <div class="modal-content" style="background: white; padding: 2rem; border-radius: 12px; width: 95%; max-width: 950px; max-height: 85vh; position: relative; display: flex; flex-direction: column;">
+                <button onclick="closeStandardTimeModal()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748B;">&times;</button>
+                <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+                    <span>⏱️ 표준시간 마스터 관리</span>
+                    <button onclick="openAddStandardTimeForm()" class="btn btn-primary" style="margin-left: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;">+ 신규 등록</button>
+                </h3>
+                
+                <!-- Search & Filters -->
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem; margin-bottom: 1rem;">
+                    <input type="text" id="stdTimeSearch" oninput="filterStandardTimes()" placeholder="품번 또는 품명으로 검색..." style="flex-grow: 1; padding: 0.5rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.9rem;">
+                    <select id="stdTimeEquipFilter" onchange="filterStandardTimes()" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.9rem;">
+                        <option value="">전체 장비</option>
+                        <option value="HSP6300">HSP6300</option>
+                        <option value="HSP8000 #1">HSP8000 #1</option>
+                        <option value="HSP8000 #2">HSP8000 #2</option>
+                        <option value="HM2J">HM2J</option>
+                        <option value="AH2J">AH2J</option>
+                        <option value="Y10T">Y10T</option>
+                        <option value="Y15T">Y15T</option>
+                        <option value="YBM1530">YBM1530</option>
+                    </select>
+                </div>
+
+                <!-- Add/Edit Form (Collapsible/Hidden by default) -->
+                <div id="stdTimeFormContainer" class="hidden" style="background: #f8fafc; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1rem;">
+                    <h4 id="stdTimeFormTitle" style="margin-top: 0; margin-bottom: 0.8rem;">신규 표준시간 등록</h4>
+                    <form id="stdTimeForm" onsubmit="saveStandardTime(event)" style="display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 0.5rem; align-items: end;">
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 2px;">장비 (W/C)</label>
+                            <select id="formStdEquip" required style="width: 100%; padding: 0.4rem; border-radius: 4px; border: 1px solid #cbd5e1; height: 34px;">
+                                <option value="HSP6300">HSP6300</option>
+                                <option value="HSP8000 #1">HSP8000 #1</option>
+                                <option value="HSP8000 #2">HSP8000 #2</option>
+                                <option value="HM2J">HM2J</option>
+                                <option value="AH2J">AH2J</option>
+                                <option value="Y10T">Y10T</option>
+                                <option value="Y15T">Y15T</option>
+                                <option value="YBM1530">YBM1530</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 2px;">품번</label>
+                            <input type="text" id="formStdPartNo" required placeholder="예: 160601-02186C" style="width: 90%; padding: 0.4rem; border-radius: 4px; border: 1px solid #cbd5e1; height: 24px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 2px;">품명</label>
+                            <input type="text" id="formStdPartName" placeholder="예: BODY;HEAD" style="width: 90%; padding: 0.4rem; border-radius: 4px; border: 1px solid #cbd5e1; height: 24px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 2px;">가공시간 (분)</label>
+                            <input type="number" id="formStdTime" required min="1" placeholder="예: 190" style="width: 90%; padding: 0.4rem; border-radius: 4px; border: 1px solid #cbd5e1; height: 24px;">
+                        </div>
+                        <div style="display: flex; gap: 0.3rem;">
+                            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem; height: 34px;">저장</button>
+                            <button type="button" onclick="closeStandardTimeForm()" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: #64748b; height: 34px;">취소</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Table Content -->
+                <div id="stdTimeContent" style="overflow-y: auto; flex-grow: 1; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: fixed;">
+                        <thead style="background: #f1f5f9; position: sticky; top: 0; z-index: 10;">
+                            <tr>
+                                <th style="padding: 0.8rem 0.5rem; border-bottom: 1px solid #ddd; width: 15%;">장비 (W/C)</th>
+                                <th style="padding: 0.8rem 0.5rem; border-bottom: 1px solid #ddd; width: 25%;">품번</th>
+                                <th style="padding: 0.8rem 0.5rem; border-bottom: 1px solid #ddd; width: 30%;">품명</th>
+                                <th style="padding: 0.8rem 0.5rem; border-bottom: 1px solid #ddd; width: 15%;">가공시간 (분)</th>
+                                <th style="padding: 0.8rem 0.5rem; border-bottom: 1px solid #ddd; width: 15%;">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stdTimeTableBody" style="text-align: center;"></tbody>
+                    </table>
+                </div>
+                <div id="stdTimePagination" class="pagination-container" style="margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem;"></div>
+            </div>
         </div>
 
         <!-- Activity Log Modal -->

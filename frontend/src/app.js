@@ -935,5 +935,218 @@ if (saveConsolidatedBtn) {
     });
 }
 
+// ==========================================
+// Phase: Standard Time Master Management UI
+// ==========================================
+let allStandardTimes = [];
+let filteredStandardTimes = [];
+const STD_TIMES_PER_PAGE = 10;
+
+async function openStandardTimeModal() {
+    const modal = document.getElementById('standardTimeModal');
+    modal.classList.remove('hidden');
+    closeStandardTimeForm();
+    await fetchStandardTimes();
+}
+
+function closeStandardTimeModal() {
+    document.getElementById('standardTimeModal').classList.add('hidden');
+}
+
+async function fetchStandardTimes() {
+    const tbody = document.getElementById('stdTimeTableBody');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">로딩 중...</td></tr>';
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/standard-times`);
+        if (!res) return;
+        const json = await res.json();
+        if (json.success) {
+            allStandardTimes = json.data;
+            filterStandardTimes();
+        }
+    } catch (err) {
+        console.error("Failed to fetch standard times", err);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: red;">표준시간을 불러오는데 실패했습니다.</td></tr>';
+    }
+}
+
+function filterStandardTimes() {
+    const searchQuery = document.getElementById('stdTimeSearch').value.toLowerCase().trim();
+    const equipFilter = document.getElementById('stdTimeEquipFilter').value;
+    
+    filteredStandardTimes = allStandardTimes.filter(item => {
+        const matchSearch = (item.partNo || "").toLowerCase().includes(searchQuery) || 
+                            (item.partName || "").toLowerCase().includes(searchQuery);
+        const matchEquip = !equipFilter || item.equipment === equipFilter;
+        return matchSearch && matchEquip;
+    });
+    
+    renderStandardTimePage(1);
+}
+
+function renderStandardTimePage(page) {
+    const tbody = document.getElementById('stdTimeTableBody');
+    const pagination = document.getElementById('stdTimePagination');
+    tbody.innerHTML = '';
+    
+    if (filteredStandardTimes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">표준시간 데이터가 없습니다.</td></tr>';
+        pagination.innerHTML = '';
+        return;
+    }
+
+    const start = (page - 1) * STD_TIMES_PER_PAGE;
+    const end = start + STD_TIMES_PER_PAGE;
+    const pageItems = filteredStandardTimes.slice(start, end);
+
+    pageItems.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="padding: 0.5rem; border: 1px solid #ddd;">${item.equipment}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; font-weight: bold;">${item.partNo}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; text-align: left;">${item.partName || ''}</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; font-weight: bold; color: #1E3A8A;">${item.stdTime}분</td>
+            <td style="padding: 0.5rem; border: 1px solid #ddd; display: flex; gap: 0.3rem; justify-content: center;">
+                <button onclick="editStandardTime('${item.equipment}', '${item.partNo}', '${item.partName || ''}', ${item.stdTime})" class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background-color: #E67E22; border-color: #E67E22; color: white; cursor: pointer; border-radius: 4px;">수정</button>
+                <button onclick="deleteStandardTime('${item.equipment}', '${item.partNo}')" class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; background-color: #EF4444; border-color: #EF4444; color: white; cursor: pointer; border-radius: 4px;">삭제</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    renderStandardTimePaginationButtons(filteredStandardTimes.length, page, pagination, renderStandardTimePage);
+}
+
+function renderStandardTimePaginationButtons(totalCount, currentPage, container, renderFn) {
+    container.innerHTML = '';
+    const totalPages = Math.ceil(totalCount / STD_TIMES_PER_PAGE);
+    if (totalPages <= 1) return;
+
+    const maxButtons = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+    if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    if (startPage > 1) {
+        const first = document.createElement('button');
+        first.textContent = '«';
+        first.onclick = () => renderFn(1);
+        container.appendChild(first);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        if (i === currentPage) btn.classList.add('active');
+        btn.onclick = () => renderFn(i);
+        container.appendChild(btn);
+    }
+
+    if (endPage < totalPages) {
+        const last = document.createElement('button');
+        last.textContent = '»';
+        last.onclick = () => renderFn(totalPages);
+        container.appendChild(last);
+    }
+}
+
+function openAddStandardTimeForm() {
+    const container = document.getElementById('stdTimeFormContainer');
+    container.classList.remove('hidden');
+    document.getElementById('stdTimeFormTitle').textContent = '신규 표준시간 등록';
+    document.getElementById('formStdEquip').disabled = false;
+    document.getElementById('formStdPartNo').disabled = false;
+    
+    // Clear inputs
+    document.getElementById('formStdEquip').value = 'HSP6300';
+    document.getElementById('formStdPartNo').value = '';
+    document.getElementById('formStdPartName').value = '';
+    document.getElementById('formStdTime').value = '';
+}
+
+function closeStandardTimeForm() {
+    document.getElementById('stdTimeFormContainer').classList.add('hidden');
+}
+
+function editStandardTime(equipment, partNo, partName, stdTime) {
+    const container = document.getElementById('stdTimeFormContainer');
+    container.classList.remove('hidden');
+    document.getElementById('stdTimeFormTitle').textContent = '표준시간 수정';
+    
+    document.getElementById('formStdEquip').value = equipment;
+    document.getElementById('formStdEquip').disabled = true; // Key field
+    document.getElementById('formStdPartNo').value = partNo;
+    document.getElementById('formStdPartNo').disabled = true; // Key field
+    
+    document.getElementById('formStdPartName').value = partName;
+    document.getElementById('formStdTime').value = stdTime;
+}
+
+async function saveStandardTime(event) {
+    event.preventDefault();
+    const equipment = document.getElementById('formStdEquip').value;
+    const partNo = document.getElementById('formStdPartNo').value.trim();
+    const partName = document.getElementById('formStdPartName').value.trim();
+    const stdTime = document.getElementById('formStdTime').value;
+
+    if (!equipment || !partNo || !stdTime) return;
+
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/standard-times`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ equipment, partNo, partName, stdTime })
+        });
+        const json = await res.json();
+        if (json.success) {
+            showToast('표준시간이 성공적으로 저장되었습니다.');
+            closeStandardTimeForm();
+            await fetchStandardTimes();
+            
+            // Reload planning list if consolidated is open
+            if (!currentEquipment) {
+                loadConsolidatedPlans();
+            } else {
+                loadPlans(currentEquipment);
+            }
+        } else {
+            alert('저장 실패: ' + json.error);
+        }
+    } catch (err) {
+        console.error("Error saving standard time", err);
+        alert('서버 오류로 저장하지 못했습니다.');
+    }
+}
+
+async function deleteStandardTime(equipment, partNo) {
+    if (!confirm(`[${equipment}] 품번: ${partNo} 표준시간을 정말 삭제하시겠습니까?`)) return;
+
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/standard-times/${encodeURIComponent(equipment)}/${encodeURIComponent(partNo)}`, {
+            method: 'DELETE'
+        });
+        const json = await res.json();
+        if (json.success) {
+            showToast('표준시간이 삭제되었습니다.');
+            await fetchStandardTimes();
+            
+            // Reload planning list
+            if (!currentEquipment) {
+                loadConsolidatedPlans();
+            } else {
+                loadPlans(currentEquipment);
+            }
+        } else {
+            alert('삭제 실패: ' + json.error);
+        }
+    } catch (err) {
+        console.error("Error deleting standard time", err);
+        alert('서버 오류로 삭제하지 못했습니다.');
+    }
+}
+
 // Initialize Layout immediately without checking auth (Cloudflare Access handles it)
 init();

@@ -261,6 +261,43 @@ try {
         }
     });
 
+    app.get('/api/standard-times', async (req, res) => {
+        try {
+            const rows = await all(`SELECT * FROM standard_times ORDER BY equipment ASC, partNo ASC`);
+            res.json({ success: true, data: rows });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.post('/api/standard-times', async (req, res) => {
+        const { equipment, partNo, partName, stdTime } = req.body;
+        try {
+            await run(`
+                INSERT INTO standard_times (equipment, partNo, partName, stdTime) 
+                VALUES (?, ?, ?, ?) 
+                ON CONFLICT(equipment, partNo) 
+                DO UPDATE SET partName=excluded.partName, stdTime=excluded.stdTime
+            `, [equipment.trim(), partNo.trim(), (partName || "").trim(), parseInt(stdTime)]);
+            
+            await logActivity(req, '표준시간 등록/수정', `장비: ${equipment}, 품번: ${partNo}, 시간: ${stdTime}분`);
+            res.json({ success: true, message: 'Standard time saved successfully.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.delete('/api/standard-times/:equipment/:partNo', async (req, res) => {
+        const { equipment, partNo } = req.params;
+        try {
+            await run(`DELETE FROM standard_times WHERE equipment = ? AND partNo = ?`, [equipment.trim(), partNo.trim()]);
+            await logActivity(req, '표준시간 삭제', `장비: ${equipment}, 품번: ${partNo}`);
+            res.json({ success: true, message: 'Standard time deleted successfully.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
     app.post('/api/urgent-status/:id', async (req, res) => {
         const { id } = req.params;
         const { urgentStatus } = req.body;
