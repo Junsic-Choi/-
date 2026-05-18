@@ -141,6 +141,7 @@ try {
             await run(`CREATE INDEX IF NOT EXISTS idx_plans_eq_week ON plans(equipment, weekId)`);
             await run(`CREATE INDEX IF NOT EXISTS idx_plans_weekId ON plans(weekId)`);
             await run(`CREATE INDEX IF NOT EXISTS idx_plans_manager ON plans(manager)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_plans_eq_part ON plans(equipment, partNo)`);
 
             await run(`UPDATE plans SET equipment = 'HSP8000 #1' WHERE equipment = 'HSP8000'`);
             await run(`UPDATE plans SET equipment = 'HSP8000 #2' WHERE equipment = '#2'`);
@@ -284,7 +285,7 @@ try {
                 VALUES (?, ?, ?, ?) 
                 ON CONFLICT(equipment, partNo) 
                 DO UPDATE SET partName=excluded.partName, stdTime=excluded.stdTime
-            `, [equipment.trim(), partNo.trim(), (partName || "").trim(), parseInt(stdTime)]);
+            `, [equipment.trim(), partNo.trim().toUpperCase(), (partName || "").trim(), parseInt(stdTime)]);
             
             await logActivity(req, '표준시간 등록/수정', `장비: ${equipment}, 품번: ${partNo}, 시간: ${stdTime}분`);
             res.json({ success: true, message: 'Standard time saved successfully.' });
@@ -296,7 +297,7 @@ try {
     app.delete('/api/standard-times/:equipment/:partNo', async (req, res) => {
         const { equipment, partNo } = req.params;
         try {
-            await run(`DELETE FROM standard_times WHERE equipment = ? AND partNo = ?`, [equipment.trim(), partNo.trim()]);
+            await run(`DELETE FROM standard_times WHERE equipment = ? AND partNo = ?`, [equipment.trim(), partNo.trim().toUpperCase()]);
             await logActivity(req, '표준시간 삭제', `장비: ${equipment}, 품번: ${partNo}`);
             res.json({ success: true, message: 'Standard time deleted successfully.' });
         } catch (err) {
@@ -338,7 +339,7 @@ try {
         try {
             const sql = `
                 SELECT p.*, s.stdTime as standardTime FROM plans p
-                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
+                LEFT JOIN standard_times s ON p.equipment = s.equipment AND p.partNo = s.partNo
                 WHERE p.equipment = ? AND p.weekId = ? ORDER BY p.id ASC
             `;
             const rows = await all(sql, [equipment, weekId]);
@@ -346,7 +347,7 @@ try {
 
             const pastSql = `
                 SELECT p.*, s.stdTime as standardTime FROM plans p
-                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
+                LEFT JOIN standard_times s ON p.equipment = s.equipment AND p.partNo = s.partNo
                 WHERE p.equipment = ? AND p.weekId <= ? ORDER BY p.weekId DESC LIMIT 20
             `;
             const pastRows = await all(pastSql, [equipment, weekId]);
@@ -381,7 +382,7 @@ try {
                 batch.push({
                     sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     args: [
-                        equipment, weekId, p.manager || "", p.model || "", p.partName || "", p.partNo || "", p.mon || "", p.tue || "", p.wed || "", p.thu || "", p.fri || "", p.sat || "", p.sun || "",
+                        equipment.trim(), weekId, (p.manager || "").trim(), (p.model || "").trim(), (p.partName || "").trim(), (p.partNo || "").trim().toUpperCase(), p.mon || "", p.tue || "", p.wed || "", p.thu || "", p.fri || "", p.sat || "", p.sun || "",
                         existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""
                     ]
                 });
@@ -408,7 +409,7 @@ try {
                     batch.push({
                         sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         args: [
-                            equipment, targetWeek, p.manager || "", p.model || "", p.partName || "", p.partNo || "",
+                            equipment.trim(), targetWeek, (p.manager || "").trim(), (p.model || "").trim(), (p.partName || "").trim(), (p.partNo || "").trim().toUpperCase(),
                             existing ? existing.mon : "", existing ? existing.tue : "", existing ? existing.wed : "", existing ? existing.thu : "", existing ? existing.fri : "", existing ? existing.sat : "", existing ? existing.sun : "",
                             existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""
                         ]
@@ -419,6 +420,52 @@ try {
             await client.batch(batch, 'write');
             await logActivity(req, '계획 수정/저장', `${equipment} (${weekId}) - ${plans.length}개 항목`);
             res.json({ success: true, message: 'Plans synchronized successfully.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
+    app.post('/api/plans/unscheduled', async (req, res) => {
+        const { equipment, weekId, manager, model, partName, partNo, stdTime } = req.body;
+        try {
+            if (!equipment || !partNo || !manager) {
+                return res.status(400).json({ success: false, error: '장비, 품번, 담당자는 필수 입력 항목입니다.' });
+            }
+
+            const eqTrim = equipment.trim();
+            const partNoTrim = partNo.trim().toUpperCase();
+            const managerTrim = manager.trim();
+            const modelTrim = (model || '').trim();
+            const partNameTrim = (partName || '').trim();
+
+            // Check if it already exists for the same equipment, weekId and partNo to avoid duplicates
+            const existing = await get(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? AND partNo = ?`, [eqTrim, weekId, partNoTrim]);
+            if (existing) {
+                return res.json({ success: true, message: 'Already exists.' });
+            }
+
+            const batch = [];
+
+            // 1. Insert empty plan with initial actuals as empty
+            batch.push({
+                sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, '', '', '', '', '', '', '', '', '', '', '', '', '', '')`,
+                args: [eqTrim, weekId, managerTrim, modelTrim, partNameTrim, partNoTrim]
+            });
+
+            // 2. If standard time is provided, also insert/update standard time master
+            if (stdTime && parseInt(stdTime) > 0) {
+                batch.push({
+                    sql: `INSERT INTO standard_times (equipment, partNo, partName, stdTime) 
+                          VALUES (?, ?, ?, ?) 
+                          ON CONFLICT(equipment, partNo) 
+                          DO UPDATE SET partName=excluded.partName, stdTime=excluded.stdTime`,
+                    args: [eqTrim, partNoTrim, partNameTrim, parseInt(stdTime)]
+                });
+            }
+
+            await client.batch(batch, 'write');
+            await logActivity(req, '계획 외 실적 추가', `장비: ${eqTrim}, 품번: ${partNoTrim}, 담당자: ${managerTrim}`);
+            res.json({ success: true, message: 'Unscheduled plan added successfully.' });
         } catch (err) {
             res.status(500).json({ success: false, error: err.message });
         }
@@ -442,7 +489,7 @@ try {
                 SELECT p.*, s.stdTime as standardTime FROM plans p
                 INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest 
                 ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek
-                LEFT JOIN standard_times s ON UPPER(TRIM(p.equipment)) = UPPER(TRIM(s.equipment)) AND UPPER(TRIM(p.partNo)) = UPPER(TRIM(s.partNo))
+                LEFT JOIN standard_times s ON p.equipment = s.equipment AND p.partNo = s.partNo
             `;
             const rows = await all(sql, [weekId]);
             const processed = rows.map(row => row.weekId === weekId ? row : { ...row, id: undefined, weekId, mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "", mon_act: "", tue_act: "", wed_act: "", thu_act: "", fri_act: "", sat_act: "", sun_act: "" });

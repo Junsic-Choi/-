@@ -476,8 +476,11 @@ async function loadConsolidatedPlans() {
                 const plans = groups[eq];
 
 
-                // Filter plans to only those with data (Actual planning hours must be present)
-                const activePlans = plans.filter(p => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[d] && String(p[d]).trim() !== ''));
+                // Filter plans to only those with data (Actual planning hours OR actual performance must be present)
+                const activePlans = plans.filter(p => 
+                    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[d] && String(p[d]).trim() !== '') ||
+                    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[`${d}_act`] && String(p[`${d}_act`]).trim() !== '')
+                );
                 if (activePlans.length === 0) continue; // Skip equipment group if no active plans
 
                 const equipmentHolidays = holidaysMap[eq] || { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
@@ -544,6 +547,12 @@ async function loadConsolidatedPlans() {
                         `;
                     }
 
+                    // Check if the plan is completely unscheduled (no plans on any day)
+                    const isUnscheduled = days.every(d => !plan[d] || String(plan[d]).trim() === '');
+                    const typeLabelBg = isUnscheduled ? '#FFEAE0' : '#F1F5F9';
+                    const typeLabelColor = isUnscheduled ? '#EA580C' : '#1E3A8A';
+                    const typeLabelText = isUnscheduled ? '계획외' : '계획';
+
                     // 1. Plan Row
                     const trPlan = document.createElement('tr');
                     trPlan.innerHTML = `
@@ -558,11 +567,11 @@ async function loadConsolidatedPlans() {
                         <td style="text-align: center; vertical-align: middle; padding: 2px;">
                             ${stdTimeInner}
                         </td>
-                        <td class="type-cell" style="background-color: #F1F5F9; font-weight: 700; color: #1E3A8A;">계획</td>
+                        <td class="type-cell" style="background-color: ${typeLabelBg}; font-weight: 700; color: ${typeLabelColor};">${typeLabelText}</td>
                         ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'plan')).join('')}
                     `;
                     fragment.appendChild(trPlan);
-
+ 
                     // 2. Actual Row
                     const trAct = document.createElement('tr');
                     trAct.className = 'actual-row';
@@ -570,7 +579,7 @@ async function loadConsolidatedPlans() {
                         <td></td><td></td><td></td><td></td>
                         <td></td>
                         <td></td>
-                        <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: #EF4444;">실적</td>
+                        <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: ${isUnscheduled ? '#EA580C' : '#EF4444'};">실적</td>
                         ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'act')).join('')}
                     `;
                     fragment.appendChild(trAct);
@@ -652,12 +661,19 @@ const getCellHtml = (plan, day, equipmentHolidays, type) => {
 
     const isCompleted = pStr !== '' && aVal >= pVal && pVal > 0;
 
+    // Check if the plan is completely unscheduled (no plans on any day)
+    const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
+    const isUnscheduled = days.every(d => !plan[d] || String(plan[d]).trim() === '');
+
     let tdClass = 'grid-cell';
     if (isHoliday) tdClass += ' holiday-column';
     else if (isCompleted) tdClass += ' completed-cell';
 
     if (type === 'plan') {
         tdClass += ' plan-cell';
+        if (isUnscheduled) {
+            return `<td class="${tdClass}" style="vertical-align: middle; text-align: center; color: #94A3B8; font-weight: 500;">-</td>`;
+        }
         if (isConsolidatedEditMode && !isHoliday) {
             return `<td class="${tdClass}" style="vertical-align: middle; padding: 0;">
                 <input type="text" class="cons-plan-input" data-id="${plan.id}" data-day="${day}" value="${pStr}" maxlength="2" style="width: 100%; height: 100%; border: none; text-align: center; background: transparent; font-size: 1rem; font-weight: 600; color: var(--primary);">
@@ -1171,3 +1187,119 @@ async function quickRegisterStdTime(equipment, partNo, partName) {
 
 // Initialize Layout immediately without checking auth (Cloudflare Access handles it)
 init();
+
+// Unscheduled actuals modal handlers
+const unscheduledModal = document.getElementById('unscheduledModal');
+const addUnscheduledBtn = document.getElementById('addUnscheduledBtn');
+const closeUnscheduledModalBtn = document.getElementById('closeUnscheduledModalBtn');
+const cancelUnscheduledBtn = document.getElementById('cancelUnscheduledBtn');
+const unscheduledForm = document.getElementById('unscheduledForm');
+const queryStdTimeBtn = document.getElementById('queryStdTimeBtn');
+
+if (addUnscheduledBtn) {
+    addUnscheduledBtn.addEventListener('click', () => {
+        // Reset form
+        unscheduledForm.reset();
+        document.getElementById('unschPartNameText').textContent = '-';
+        document.getElementById('unschStdTimeText').textContent = '-';
+        
+        // Show modal with transition
+        unscheduledModal.classList.remove('hidden');
+        setTimeout(() => {
+            unscheduledModal.style.opacity = '1';
+            unscheduledModal.style.pointerEvents = 'auto';
+            unscheduledModal.querySelector('.modal-content').style.transform = 'translateY(0)';
+        }, 10);
+    });
+}
+
+const hideUnscheduledModal = () => {
+    if (!unscheduledModal) return;
+    unscheduledModal.style.opacity = '0';
+    unscheduledModal.style.pointerEvents = 'none';
+    unscheduledModal.querySelector('.modal-content').style.transform = 'translateY(20px)';
+    setTimeout(() => {
+        unscheduledModal.classList.add('hidden');
+    }, 250);
+};
+
+if (closeUnscheduledModalBtn) closeUnscheduledModalBtn.addEventListener('click', hideUnscheduledModal);
+if (cancelUnscheduledBtn) cancelUnscheduledBtn.addEventListener('click', hideUnscheduledModal);
+
+if (queryStdTimeBtn) {
+    queryStdTimeBtn.addEventListener('click', async () => {
+        const eq = document.getElementById('unschEquipment').value;
+        const partNo = document.getElementById('unschPartNo').value.trim();
+        if (!eq || !partNo) {
+            alert('장비와 품번을 모두 입력해주세요.');
+            return;
+        }
+        
+        try {
+            const res = await fetchWithAuth(`${API_BASE}/standard-times`);
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+                const match = json.data.find(s => 
+                    s.equipment.toUpperCase().trim() === eq.toUpperCase().trim() && 
+                    s.partNo.toUpperCase().trim() === partNo.toUpperCase().trim()
+                );
+                if (match) {
+                    document.getElementById('unschPartNameText').textContent = match.partName || '-';
+                    document.getElementById('unschStdTimeText').textContent = match.stdTime ? `${match.stdTime}분` : '-';
+                    showToast('마스터 정보 조회 성공!');
+                } else {
+                    document.getElementById('unschPartNameText').textContent = '- (신규 품번)';
+                    document.getElementById('unschStdTimeText').textContent = '- (직접 등록 가능)';
+                    alert('해당 장비와 품번에 대한 표준시간 마스터 정보가 없습니다. 계속 등록하시면 신규 품번으로 처리됩니다.');
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            alert('마스터 조회 중 오류가 발생했습니다.');
+        }
+    });
+}
+
+if (unscheduledForm) {
+    unscheduledForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const equipment = document.getElementById('unschEquipment').value;
+        const partNo = document.getElementById('unschPartNo').value.trim();
+        const manager = document.getElementById('unschManager').value.trim();
+        const model = document.getElementById('unschModel').value.trim() || '-';
+        
+        const partNameText = document.getElementById('unschPartNameText').textContent;
+        const partName = (partNameText.includes('신규') || partNameText === '-') ? '' : partNameText;
+        
+        const stdTimeText = document.getElementById('unschStdTimeText').textContent;
+        const stdTime = (stdTimeText.includes('직접') || stdTimeText === '-') ? 0 : parseInt(stdTimeText) || 0;
+        
+        try {
+            const res = await fetchWithAuth(`${API_BASE}/plans/unscheduled`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    equipment,
+                    weekId: currentWeekId,
+                    manager,
+                    model,
+                    partName,
+                    partNo,
+                    stdTime
+                })
+            });
+            const json = await res.json();
+            if (json.success) {
+                showToast('✅ 계획 외 실적이 성공적으로 추가되었습니다!');
+                hideUnscheduledModal();
+                loadConsolidatedPlans();
+            } else {
+                alert('등록 실패: ' + (json.error || json.message));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('서버 전송 중 네트워크 오류가 발생했습니다.');
+        }
+    });
+}
