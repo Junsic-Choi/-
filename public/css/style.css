@@ -335,11 +335,15 @@ input[type="text"]:focus {
     padding: 0 0.5rem;
 }
 
-.stats-row.plan-row {
+.plan-cell {
     background-color: #F8FAFC;
-    /* Light background for plan row */
-    border-bottom: 1px solid #E2E8F0;
-    /* Internal divider */
+}
+
+.stats-row.plan-row {
+    background-color: transparent !important;
+    /* Light background for plan row overridden by td background */
+    border-bottom: none !important;
+    /* Internal divider removed */
     font-weight: 700;
     color: #1E3A8A;
 }

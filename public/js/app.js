@@ -831,6 +831,7 @@ const getCellHtml = (plan, day, equipmentHolidays, type) => {
     else if (isCompleted) tdClass += ' completed-cell';
 
     if (type === 'plan') {
+        tdClass += ' plan-cell';
         if (isConsolidatedEditMode && !isHoliday) {
             return `<td class="${tdClass}" style="vertical-align: middle; padding: 0;">
                 <input type="text" class="cons-plan-input" data-id="${plan.id}" data-day="${day}" value="${pStr}" maxlength="2" style="width: 100%; height: 100%; border: none; text-align: center; background: transparent; font-size: 1rem; font-weight: 600; color: var(--primary);">
