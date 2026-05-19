@@ -478,7 +478,11 @@ try {
 
             for (const eq of orderedEquipment) {
                 const plans = groups[eq];
-                const activePlans = plans.filter(p => dayKeys.some(d => p[d]));
+                const activePlans = plans.filter(p => 
+                    dayKeys.some(d => p[d] && String(p[d]).trim() !== '') ||
+                    dayKeys.some(d => p[d + '_act'] && String(p[d + '_act']).trim() !== '') ||
+                    p.isUnscheduled === 1 || p.isUnscheduled === '1'
+                );
                 
                 activePlans.sort((a, b) => {
                     const managerA = (a.manager || '').trim();
