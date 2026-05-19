@@ -1187,6 +1187,7 @@ if (editModeBtn) {
         if (saveActualsBtn) saveActualsBtn.classList.add('hidden');
         if (exportExcelBtn) exportExcelBtn.classList.add('hidden');
         if (refreshConsolidatedBtn) refreshConsolidatedBtn.classList.add('hidden');
+        if (addUnscheduledBtn) addUnscheduledBtn.classList.add('hidden');
 
         loadConsolidatedPlans();
     };
@@ -1211,6 +1212,7 @@ if (saveConsolidatedBtn) {
             isConsolidatedEditMode = false;
             editModeBtn.innerHTML = '✏️ 수정 모드';
             saveConsolidatedBtn.classList.add('hidden');
+            if (addUnscheduledBtn) addUnscheduledBtn.classList.remove('hidden');
             loadConsolidatedPlans();
             return;
         }
@@ -1236,6 +1238,7 @@ if (saveConsolidatedBtn) {
                 if (saveActualsBtn) saveActualsBtn.classList.remove('hidden');
                 if (exportExcelBtn) exportExcelBtn.classList.remove('hidden');
                 if (refreshConsolidatedBtn) refreshConsolidatedBtn.classList.remove('hidden');
+                if (addUnscheduledBtn) addUnscheduledBtn.classList.remove('hidden');
 
                 loadConsolidatedPlans();
             } else {
