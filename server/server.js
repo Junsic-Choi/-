@@ -614,7 +614,11 @@ try {
     app.get('/api/export-excel-styled/:weekId', async (req, res) => {
         const { weekId } = req.params;
         try {
-            const sql = `SELECT p.* FROM plans p INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek`;
+            const sql = `
+                SELECT p.*, s.stdTime as standardTime FROM plans p 
+                INNER JOIN (SELECT equipment, MAX(weekId) as maxWeek FROM plans WHERE weekId <= ? GROUP BY equipment) latest ON p.equipment = latest.equipment AND p.weekId = latest.maxWeek 
+                LEFT JOIN standard_times s ON p.equipment = s.equipment AND p.partNo = s.partNo
+            `;
             const rows = await all(sql, [weekId]);
             const holidayRows = await all(`SELECT * FROM equipment_holidays WHERE weekId = ?`, [weekId]);
             const hMap = {}; holidayRows.forEach(r => hMap[r.equipment] = r);
