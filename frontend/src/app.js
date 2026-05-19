@@ -434,7 +434,7 @@ btnSave.addEventListener('click', async () => {
 
 // Load Consolidated View
 async function loadConsolidatedPlans() {
-    consolidatedTableBody.innerHTML = '<tr><td colspan="13" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
+    consolidatedTableBody.innerHTML = '<tr><td colspan="14" style="text-align:center;">데이터를 불러오는 중입니다...</td></tr>';
     try {
         // Parallelize fetches for better performance
         const [res, hRes] = await Promise.all([
