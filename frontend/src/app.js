@@ -476,10 +476,11 @@ async function loadConsolidatedPlans() {
                 const plans = groups[eq];
 
 
-                // Filter plans to only those with data (Actual planning hours OR actual performance must be present)
+                // Filter plans to only those with data (Actual planning hours OR actual performance must be present, OR explicitly registered for this week)
                 const activePlans = plans.filter(p => 
                     ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[d] && String(p[d]).trim() !== '') ||
-                    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[`${d}_act`] && String(p[`${d}_act`]).trim() !== '')
+                    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[`${d}_act`] && String(p[`${d}_act`]).trim() !== '') ||
+                    (p.id !== undefined && p.id !== null)
                 );
                 if (activePlans.length === 0) continue; // Skip equipment group if no active plans
 
@@ -1248,6 +1249,29 @@ if (queryStdTimeBtn) {
                     document.getElementById('unschStdTimeText').textContent = match.stdTime ? `${match.stdTime}분` : '-';
                     showToast('마스터 정보 조회 성공!');
                 } else {
+                    // Fallback to active plans search
+                    try {
+                        const plansRes = await fetchWithAuth(`${API_BASE}/plans-consolidated/${currentWeekId}`);
+                        const plansJson = await plansRes.json();
+                        if (plansJson.success && Array.isArray(plansJson.data)) {
+                            const planMatch = plansJson.data.find(p => 
+                                p.equipment.toUpperCase().trim() === eq.toUpperCase().trim() && 
+                                p.partNo.toUpperCase().trim() === partNo.toUpperCase().trim()
+                            );
+                            if (planMatch) {
+                                document.getElementById('unschPartNameText').textContent = planMatch.partName || '-';
+                                document.getElementById('unschStdTimeText').textContent = '미등록 (계획 데이터에서 품명 자동 완성)';
+                                if (planMatch.model) {
+                                    document.getElementById('unschModel').value = planMatch.model;
+                                }
+                                showToast('계획 데이터에서 품명/기종 자동 완성 완료!');
+                                return;
+                            }
+                        }
+                    } catch (planErr) {
+                        console.error('Fallback plan search failed:', planErr);
+                    }
+
                     document.getElementById('unschPartNameText').textContent = '- (신규 품번)';
                     document.getElementById('unschStdTimeText').textContent = '- (직접 등록 가능)';
                     alert('해당 장비와 품번에 대한 표준시간 마스터 정보가 없습니다. 계속 등록하시면 신규 품번으로 처리됩니다.');
@@ -1273,7 +1297,7 @@ if (unscheduledForm) {
         const partName = (partNameText.includes('신규') || partNameText === '-') ? '' : partNameText;
         
         const stdTimeText = document.getElementById('unschStdTimeText').textContent;
-        const stdTime = (stdTimeText.includes('직접') || stdTimeText === '-') ? 0 : parseInt(stdTimeText) || 0;
+        const stdTime = (stdTimeText.includes('직접') || stdTimeText.includes('미등록') || stdTimeText === '-') ? 0 : parseInt(stdTimeText) || 0;
         
         try {
             const res = await fetchWithAuth(`${API_BASE}/plans/unscheduled`, {
