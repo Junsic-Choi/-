@@ -552,7 +552,24 @@ async function loadConsolidatedPlans() {
                     const isUnscheduled = days.every(d => !plan[d] || String(plan[d]).trim() === '');
                     const typeLabelBg = isUnscheduled ? '#FFEAE0' : '#F1F5F9';
                     const typeLabelColor = isUnscheduled ? '#EA580C' : '#1E3A8A';
-                    const typeLabelText = isUnscheduled ? '계획외' : '계획';
+                    
+                    let typeLabelInnerHtml = '';
+                    if (isUnscheduled) {
+                        if (plan.id) {
+                            typeLabelInnerHtml = `
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px;">
+                                    <span style="font-size: 0.8rem;">계획외</span>
+                                    <button onclick="deleteUnscheduledRow('${plan.id}', '${plan.equipment}', '${plan.partNo}')" style="background-color: #EF4444; color: white; border: none; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#DC2626'" onmouseout="this.style.backgroundColor='#EF4444'" title="계획 외 실적 영구 삭제">
+                                        삭제
+                                    </button>
+                                </div>
+                            `;
+                        } else {
+                            typeLabelInnerHtml = '계획외';
+                        }
+                    } else {
+                        typeLabelInnerHtml = '계획';
+                    }
 
                     // 1. Plan Row
                     const trPlan = document.createElement('tr');
@@ -568,7 +585,7 @@ async function loadConsolidatedPlans() {
                         <td style="text-align: center; vertical-align: middle; padding: 2px;">
                             ${stdTimeInner}
                         </td>
-                        <td class="type-cell" style="background-color: ${typeLabelBg}; font-weight: 700; color: ${typeLabelColor};">${typeLabelText}</td>
+                        <td class="type-cell" style="background-color: ${typeLabelBg}; font-weight: 700; color: ${typeLabelColor}; text-align: center; vertical-align: middle; min-width: 60px;">${typeLabelInnerHtml}</td>
                         ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'plan')).join('')}
                     `;
                     fragment.appendChild(trPlan);
@@ -1327,3 +1344,26 @@ if (unscheduledForm) {
         }
     });
 }
+
+// Global function to delete unscheduled plan row from Consolidated View
+async function deleteUnscheduledRow(id, equipment, partNo) {
+    if (!confirm(`[${equipment}] 장비의 품번 [${partNo}] 계획 외 실적 행을 완전히 삭제하시겠습니까?`)) {
+        return;
+    }
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/plans/${id}`, {
+            method: 'DELETE'
+        });
+        const json = await res.json();
+        if (json.success) {
+            showToast('✅ 계획 외 실적이 성공적으로 삭제되었습니다! 🎉');
+            loadConsolidatedPlans();
+        } else {
+            alert('삭제 실패: ' + json.error);
+        }
+    } catch (err) {
+        console.error(err);
+        alert('네트워크 오류가 발생했습니다.');
+    }
+}
+window.deleteUnscheduledRow = deleteUnscheduledRow;

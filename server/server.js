@@ -309,6 +309,21 @@ try {
         }
     });
 
+    app.delete('/api/plans/:id', async (req, res) => {
+        const { id } = req.params;
+        try {
+            const plan = await get(`SELECT * FROM plans WHERE id = ?`, [id]);
+            if (!plan) {
+                return res.status(404).json({ success: false, error: 'Plan row not found.' });
+            }
+            await run(`DELETE FROM plans WHERE id = ?`, [id]);
+            await logActivity(req, '계획 외 실적 삭제', `장비: ${plan.equipment}, 품번: ${plan.partNo}, 담당자: ${plan.manager}`);
+            res.json({ success: true, message: 'Plan row deleted successfully.' });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    });
+
     app.post('/api/urgent-status/:id', async (req, res) => {
         const { id } = req.params;
         const { urgentStatus } = req.body;
