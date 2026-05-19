@@ -129,6 +129,10 @@ try {
                 await run(`ALTER TABLE plans ADD COLUMN urgentStatus TEXT DEFAULT ''`);
             }
 
+            if (!colNames.includes('isUnscheduled')) {
+                await run(`ALTER TABLE plans ADD COLUMN isUnscheduled INTEGER DEFAULT 0`);
+            }
+
             await run(`CREATE TABLE IF NOT EXISTS equipment_holidays (
                 equipment TEXT NOT NULL,
                 weekId TEXT NOT NULL,
@@ -380,10 +384,11 @@ try {
             plans.forEach(p => {
                 const existing = currentRows.find(cr => cr.partNo === p.partNo && cr.partName === p.partName && cr.model === p.model);
                 batch.push({
-                    sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act, isUnscheduled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     args: [
                         equipment.trim(), weekId, (p.manager || "").trim(), (p.model || "").trim(), (p.partName || "").trim(), (p.partNo || "").trim().toUpperCase(), p.mon || "", p.tue || "", p.wed || "", p.thu || "", p.fri || "", p.sat || "", p.sun || "",
-                        existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""
+                        existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : "",
+                        existing ? existing.isUnscheduled || 0 : 0
                     ]
                 });
             });
@@ -407,11 +412,12 @@ try {
                 plans.forEach(p => {
                     const existing = targetRows.find(tr => tr.partNo === p.partNo && tr.partName === p.partName && tr.model === p.model);
                     batch.push({
-                        sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act, isUnscheduled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         args: [
                             equipment.trim(), targetWeek, (p.manager || "").trim(), (p.model || "").trim(), (p.partName || "").trim(), (p.partNo || "").trim().toUpperCase(),
                             existing ? existing.mon : "", existing ? existing.tue : "", existing ? existing.wed : "", existing ? existing.thu : "", existing ? existing.fri : "", existing ? existing.sat : "", existing ? existing.sun : "",
-                            existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : ""
+                            existing ? existing.mon_act : "", existing ? existing.tue_act : "", existing ? existing.wed_act : "", existing ? existing.thu_act : "", existing ? existing.fri_act : "", existing ? existing.sat_act : "", existing ? existing.sun_act : "",
+                            existing ? existing.isUnscheduled || 0 : 0
                         ]
                     });
                 });
@@ -446,9 +452,9 @@ try {
 
             const batch = [];
 
-            // 1. Insert empty plan with initial actuals as empty
+            // 1. Insert empty plan with initial actuals as empty and isUnscheduled = 1
             batch.push({
-                sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act) VALUES (?, ?, ?, ?, ?, ?, '', '', '', '', '', '', '', '', '', '', '', '', '', '')`,
+                sql: `INSERT INTO plans (equipment, weekId, manager, model, partName, partNo, mon, tue, wed, thu, fri, sat, sun, mon_act, tue_act, wed_act, thu_act, fri_act, sat_act, sun_act, isUnscheduled) VALUES (?, ?, ?, ?, ?, ?, '', '', '', '', '', '', '', '', '', '', '', '', '', '', 1)`,
                 args: [eqTrim, weekId, managerTrim, modelTrim, partNameTrim, partNoTrim]
             });
 

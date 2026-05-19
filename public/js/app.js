@@ -672,11 +672,11 @@ async function loadConsolidatedPlans() {
 
             for (const eq of orderedEquipment) {
                 const plans = groups[eq];
-                // Filter plans to only those with data (Actual planning hours OR actual performance must be present, OR explicitly registered for this week)
+                // Filter plans to only those with data (Actual planning hours OR actual performance must be present, OR explicitly registered for this week as 계획 외 실적)
                 const activePlans = plans.filter(p => 
                     ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[d] && String(p[d]).trim() !== '') ||
                     ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some(d => p[`${d}_act`] && String(p[`${d}_act`]).trim() !== '') ||
-                    (p.id !== undefined && p.id !== null)
+                    (p.id !== undefined && p.id !== null && (p.isUnscheduled === 1 || p.isUnscheduled === '1'))
                 );
                 if (activePlans.length === 0) continue; 
 
