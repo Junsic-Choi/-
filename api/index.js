@@ -301,7 +301,24 @@ try {
             // Check if it already exists for the same equipment, weekId and partNo to avoid duplicates
             const existing = await get(`SELECT * FROM plans WHERE equipment = ? AND weekId = ? AND partNo = ?`, [eqTrim, weekId, partNoTrim]);
             if (existing) {
-                return res.json({ success: true, message: 'Already exists.' });
+                const batch = [
+                    {
+                        sql: `UPDATE plans SET manager = ?, model = ?, partName = ?, isUnscheduled = 1 WHERE id = ?`,
+                        args: [managerTrim, modelTrim, partNameTrim, existing.id]
+                    }
+                ];
+                if (stdTime && parseInt(stdTime) > 0) {
+                    batch.push({
+                        sql: `INSERT INTO standard_times (equipment, partNo, partName, stdTime) 
+                              VALUES (?, ?, ?, ?) 
+                              ON CONFLICT(equipment, partNo) 
+                              DO UPDATE SET partName=excluded.partName, stdTime=excluded.stdTime`,
+                        args: [eqTrim, partNoTrim, partNameTrim, parseInt(stdTime)]
+                    });
+                }
+                await client.batch(batch, 'write');
+                await logActivity(req, '계획 외 실적 추가 (기존 행 업데이트)', `장비: ${eqTrim}, 품번: ${partNoTrim}, 담당자: ${managerTrim}`);
+                return res.json({ success: true, message: 'Unscheduled plan updated successfully.' });
             }
 
             const batch = [];
