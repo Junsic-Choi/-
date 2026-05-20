@@ -777,13 +777,17 @@ async function loadConsolidatedPlans() {
                     `;
                     fragment.appendChild(trAct);
 
-                    // Accumulate totals for achievement rate
+                    // Accumulate totals for achievement rate (capping actual at plan per item)
+                    let itemWeeklyPlan = 0;
+                    let itemWeeklyActual = 0;
                     days.forEach(d => {
                         if (equipmentHolidays[d] !== 1) {
-                            eqTotalPlan += (parseInt(plan[d]) || 0);
-                            eqTotalActual += (parseInt(plan[`${d}_act`]) || 0);
+                            itemWeeklyPlan += (parseInt(plan[d]) || 0);
+                            itemWeeklyActual += (parseInt(plan[`${d}_act`]) || 0);
                         }
                     });
+                    eqTotalPlan += itemWeeklyPlan;
+                    eqTotalActual += Math.min(itemWeeklyActual, itemWeeklyPlan);
                 });
 
                 // Add Daily Plan Totals Row
