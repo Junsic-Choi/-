@@ -852,11 +852,35 @@ const getCellHtml = (plan, day, equipmentHolidays, type) => {
     const pVal = parseInt(pStr) || 0;
     const aVal = parseInt(aStr) || 0;
 
-    const isCompleted = pStr !== '' && aVal >= pVal && pVal > 0;
-
     // Check if the plan is completely unscheduled (no plans on any day)
     const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
     const isUnscheduled = days.every(d => !plan[d] || String(plan[d]).trim() === '');
+
+    // Calculate weekly totals to see if the overall weekly goal is met/exceeded
+    let weeklyTotalPlan = 0;
+    let weeklyTotalActual = 0;
+    days.forEach(d => {
+        const dayIsHoliday = equipmentHolidays && equipmentHolidays[d] === 1;
+        if (!dayIsHoliday) {
+            weeklyTotalPlan += parseInt(plan[d]) || 0;
+            weeklyTotalActual += parseInt(plan[`${d}_act`]) || 0;
+        }
+    });
+
+    const isWeeklyCompleted = weeklyTotalPlan > 0 && weeklyTotalActual >= weeklyTotalPlan;
+
+    let isCompleted = false;
+    if (isWeeklyCompleted) {
+        // Under weekly completion: highlight any planned day's plan cell, and any day with actual performance
+        if (type === 'plan') {
+            isCompleted = pVal > 0;
+        } else {
+            isCompleted = aVal > 0;
+        }
+    } else {
+        // Day-by-day fallback: highlight only if actual >= plan on the same day
+        isCompleted = pStr !== '' && aVal >= pVal && pVal > 0;
+    }
 
     let tdClass = 'grid-cell';
     if (isHoliday) tdClass += ' holiday-column';
