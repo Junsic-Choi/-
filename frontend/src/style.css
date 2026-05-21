@@ -530,3 +530,27 @@ input[type="text"]:focus {
     cursor: default;
     user-select: none;
 }
+
+/* Urgent Status Styles */
+.importance-star {
+    color: #10B981 !important;
+    font-size: 1.4rem !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    display: inline-block;
+}
+
+.part-no-cell {
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+}
+
+.part-no-cell:hover {
+    background-color: #F1F5F9;
+}
+
+.part-no-text {
+    text-decoration: underline dotted;
+    color: var(--primary);
+}

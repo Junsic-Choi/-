@@ -755,7 +755,6 @@ async function loadConsolidatedPlans() {
                         <td>${plan.partName}</td>
                         <td class="part-no-cell" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')" style="cursor: pointer; position: relative;">
                             <span class="part-no-text" style="font-weight: 600;">${plan.partNo}</span>
-                            ${isUrgent ? '<span class="importance-star" style="color: #EF4444; font-weight: bold; margin-left: 4px; font-size: 1.1rem; vertical-align: middle;">*</span>' : ''}
                         </td>
                         <td style="text-align: center; vertical-align: middle; padding: 2px;">
                             ${stdTimeInner}
@@ -770,7 +769,9 @@ async function loadConsolidatedPlans() {
                     trAct.className = 'actual-row';
                     trAct.innerHTML = `
                         <td></td><td></td><td></td><td></td>
-                        <td></td>
+                        <td class="part-no-cell" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')" style="cursor: pointer; position: relative; text-align: center; vertical-align: middle;">
+                            ${isUrgent ? '<span class="importance-star" style="vertical-align: middle;">★</span>' : ''}
+                        </td>
                         <td></td>
                         <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: ${isUnscheduled ? '#EA580C' : '#EF4444'};">실적</td>
                         ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'act')).join('')}
