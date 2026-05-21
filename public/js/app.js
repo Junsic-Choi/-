@@ -1135,8 +1135,16 @@ function updateTableHeadersForWeek(weekString) {
         const thEq = document.getElementById(`th${days[i]}`);
         const thCon = document.getElementById(`thCons${days[i]}`);
 
-        if (thEq) thEq.innerHTML = `${korDays[i]}<br>(${formattedDate})`;
-        if (thCon) thCon.innerHTML = `${korDays[i]}<br>(${formattedDate})`;
+        const headerHtml = `${korDays[i]}<br>(${formattedDate})`;
+
+        if (thEq) {
+            thEq.innerHTML = headerHtml;
+            thEq.dataset.label = headerHtml;
+        }
+        if (thCon) {
+            thCon.innerHTML = headerHtml;
+            thCon.dataset.label = headerHtml;
+        }
     }
 
     if (weekDisplay) {

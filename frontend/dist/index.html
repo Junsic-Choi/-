@@ -25,7 +25,7 @@
             box-shadow: inset 0 -1px 0 var(--border-color), 0 2px 4px -2px rgba(0, 0, 0, 0.15) !important;
         }
     </style>
-  <script type="module" crossorigin src="/assets/main-DI-C2Wu8.js"></script>
+  <script type="module" crossorigin src="/assets/main-DM9Fp1Cb.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/main-BzK-yJh-.css">
 </head>
 
@@ -127,6 +127,7 @@
                     <button class="btn btn-primary hidden" id="saveConsolidatedBtn">💾 변경사항 저장</button>
                     <button class="btn btn-primary" id="saveActualsBtn">💾 실적 저장</button>
                     <button class="btn btn-success" id="exportExcelBtn">📥 엑셀 추출</button>
+                    <button class="btn" id="addUnscheduledBtn" style="background-color: #FFF7ED; color: #EA580C; border: 1px solid #FFEDD5; font-weight: 700; height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; cursor: pointer; border-radius: 6px; font-size: 0.9rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#FFEAD2'" onmouseout="this.style.backgroundColor='#FFF7ED'">➕ 계획 외 실적 등록</button>
                     <button class="btn btn-secondary" id="refreshConsolidatedBtn">🔄 새로고침</button>
                 </div>
             </div>
@@ -159,6 +160,64 @@
             </div>
         </section>
     </main>
+
+    <!-- Unscheduled Plan Modal -->
+    <div id="unscheduledModal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s ease;">
+        <div class="modal-content" style="background: white; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); width: 100%; max-width: 480px; padding: 1.75rem; border: 1px solid #E2E8F0; transform: translateY(20px); transition: transform 0.25s ease;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid #F1F5F9; padding-bottom: 0.75rem;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: #0F172A; display: flex; align-items: center; gap: 6px; margin: 0;">
+                    <span style="background: #FFEAE0; color: #EA580C; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 0.95rem;">➕</span>
+                    계획 외 실적 (비계획 생산) 등록
+                </h3>
+                <button id="closeUnscheduledModalBtn" style="background: none; border: none; font-size: 1.5rem; color: #94A3B8; cursor: pointer; line-height: 1; transition: color 0.15s;" onmouseover="this.style.color='#64748B'" onmouseout="this.style.color='#94A3B8'">&times;</button>
+            </div>
+            
+            <form id="unscheduledForm" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">* 장비 (W/C) 선택</label>
+                    <select id="unschEquipment" style="width: 100%; height: 38px; border: 1px solid #CBD5E1; border-radius: 6px; padding: 0 10px; font-size: 0.9rem; font-family: inherit;" required>
+                        <option value="">장비를 선택하세요</option>
+                        <option value="HSP6300">HSP6300</option>
+                        <option value="HSP8000 #1">HSP8000 #1</option>
+                        <option value="HSP8000 #2">HSP8000 #2</option>
+                        <option value="HM2J">HM2J</option>
+                        <option value="AH2J">AH2J</option>
+                        <option value="Y10T">Y10T</option>
+                        <option value="Y15T">Y15T</option>
+                        <option value="YBM1530">YBM1530</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">* 품번 입력</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="unschPartNo" placeholder="예: 160601-01685E" style="flex: 1; height: 38px; border: 1px solid #CBD5E1; border-radius: 6px; padding: 0 10px; font-size: 0.9rem; font-family: inherit;" required>
+                        <button type="button" id="queryStdTimeBtn" style="background-color: #1E3A8A; color: white; border: none; padding: 0 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: background 0.15s; white-space: nowrap;" onmouseover="this.style.backgroundColor='#1E40AF'" onmouseout="this.style.backgroundColor='#1E3A8A'">마스터 조회</button>
+                    </div>
+                </div>
+
+                <div id="unschPartDetails" style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 0.75rem; font-size: 0.85rem; color: #475569; display: flex; flex-direction: column; gap: 0.35rem;">
+                    <div>• 품명: <span id="unschPartNameText" style="font-weight: 600; color: #0F172A;">-</span></div>
+                    <div>• 표준시간: <span id="unschStdTimeText" style="font-weight: 700; color: #1E3A8A;">-</span></div>
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">기종 입력 (선택사항)</label>
+                    <input type="text" id="unschModel" placeholder="예: SMX2600" style="width: 100%; height: 38px; border: 1px solid #CBD5E1; border-radius: 6px; padding: 0 10px; font-size: 0.9rem; font-family: inherit;">
+                </div>
+
+                <div>
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 0.35rem;">* 담당자 입력</label>
+                    <input type="text" id="unschManager" placeholder="예: 양태영" style="width: 100%; height: 38px; border: 1px solid #CBD5E1; border-radius: 6px; padding: 0 10px; font-size: 0.9rem; font-family: inherit;" required>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
+                    <button type="button" id="cancelUnscheduledBtn" style="flex: 1; height: 38px; background: #F1F5F9; border: 1px solid #E2E8F0; border-radius: 6px; font-weight: 600; color: #475569; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#E2E8F0'" onmouseout="this.style.backgroundColor='#F1F5F9'">취소</button>
+                    <button type="submit" style="flex: 1; height: 38px; background: #EA580C; border: none; border-radius: 6px; font-weight: 600; color: white; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#C2410C'" onmouseout="this.style.backgroundColor='#EA580C'">등록 및 저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Toast Notification -->
     <div id="toast" class="toast hidden">저장되었습니다.</div>
