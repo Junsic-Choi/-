@@ -579,7 +579,7 @@ async function loadConsolidatedPlans() {
                         <td>${plan.model}</td>
                         <td>${plan.partName}</td>
                         <td class="part-no-cell" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')" style="cursor: pointer; position: relative;">
-                            <span class="part-no-text" style="font-weight: 600;">${plan.partNo}</span>
+                            <span class="part-no-text ${isUrgent ? 'urgent-part-no' : ''}" style="font-weight: 600;">${plan.partNo}</span>
                         </td>
                         <td style="text-align: center; vertical-align: middle; padding: 2px;">
                             ${stdTimeInner}

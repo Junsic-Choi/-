@@ -554,3 +554,7 @@ input[type="text"]:focus {
     text-decoration: underline dotted;
     color: var(--primary);
 }
+
+.urgent-part-no {
+    color: #10B981 !important;
+}

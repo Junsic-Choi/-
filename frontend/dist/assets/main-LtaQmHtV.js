@@ -33,7 +33,7 @@
                         <td>${r.model}</td>
                         <td>${r.partName}</td>
                         <td class="part-no-cell" onclick="toggleUrgentStatus('${r.id}', '${r.urgentStatus||""}')" style="cursor: pointer; position: relative;">
-                            <span class="part-no-text" style="font-weight: 600;">${r.partNo}</span>
+                            <span class="part-no-text ${u?"urgent-part-no":""}" style="font-weight: 600;">${r.partNo}</span>
                         </td>
                         <td style="text-align: center; vertical-align: middle; padding: 2px;">
                             ${x}
