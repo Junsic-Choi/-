@@ -146,6 +146,7 @@ try {
             await run(`CREATE INDEX IF NOT EXISTS idx_plans_weekId ON plans(weekId)`);
             await run(`CREATE INDEX IF NOT EXISTS idx_plans_manager ON plans(manager)`);
             await run(`CREATE INDEX IF NOT EXISTS idx_plans_eq_part ON plans(equipment, partNo)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_plans_weekId_equipment ON plans(weekId, equipment)`);
 
             await run(`UPDATE plans SET equipment = 'HSP8000 #1' WHERE equipment = 'HSP8000'`);
             await run(`UPDATE plans SET equipment = 'HSP8000 #2' WHERE equipment = '#2'`);

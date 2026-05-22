@@ -60,11 +60,11 @@ async function init() {
         currentWeekId = newWeekId;
         e.target.value = getDateStringFromWeekId(currentWeekId);
         updateTableHeadersForWeek(currentWeekId);
-        await refreshManagerFilterAndTabs(); // Update manager filter and possible tabs for new week
         if (currentEquipment) {
+            await refreshManagerFilterAndTabs(); // Update manager filter for new week (when not in consolidated view)
             loadPlans(currentEquipment);
         } else {
-            loadConsolidatedPlans();
+            loadConsolidatedPlans(); // Consolidated view updates manager filter by itself using loaded data
         }
     });
 
@@ -87,7 +87,7 @@ async function fetchEquipments() {
         const json = await res.json();
         if (json.success) {
             equipments = json.data;
-            await refreshManagerFilterAndTabs();
+            // Removed refreshManagerFilterAndTabs() to avoid double fetch on load
         }
     } catch (err) {
         console.error("Failed to load equipments", err);
@@ -95,7 +95,7 @@ async function fetchEquipments() {
 }
 
 // Refresh Manager List and Equipment Tabs based on current week's data
-async function refreshManagerFilterAndTabs() {
+async function refreshManagerFilterAndTabs(plansData = null) {
     console.log("Refreshing manager filter and tabs:", currentWeekId);
     let allManagersSet = new Set();
     managerEquipmentMap = {};
@@ -112,21 +112,28 @@ async function refreshManagerFilterAndTabs() {
             console.warn("Global managers API failed, status:", mRes.status);
         }
 
-        // 2. Fetch current week for mapping (enables equipment filtering)
-        const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
-        if (res.ok) {
-            const json = await res.json();
-            if (json.success && Array.isArray(json.data)) {
-                json.data.forEach(plan => {
-                    if (plan.manager) {
-                        allManagersSet.add(plan.manager);
-                        if (!managerEquipmentMap[plan.manager]) managerEquipmentMap[plan.manager] = new Set();
-                        managerEquipmentMap[plan.manager].add(plan.equipment);
-                    }
-                });
+        // 2. Use provided plansData or fetch current week
+        let data = plansData;
+        if (!data) {
+            const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(currentWeekId)}`);
+            if (res.ok) {
+                const json = await res.json();
+                if (json.success) {
+                    data = json.data;
+                }
+            } else {
+                console.warn("Weekly consolidated API failed, status:", res.status);
             }
-        } else {
-            console.warn("Weekly consolidated API failed, status:", res.status);
+        }
+
+        if (Array.isArray(data)) {
+            data.forEach(plan => {
+                if (plan.manager) {
+                    allManagersSet.add(plan.manager);
+                    if (!managerEquipmentMap[plan.manager]) managerEquipmentMap[plan.manager] = new Set();
+                    managerEquipmentMap[plan.manager].add(plan.equipment);
+                }
+            });
         }
     } catch (err) {
         console.error("Data refresh error:", err);
@@ -449,6 +456,9 @@ async function loadConsolidatedPlans() {
         if (!json.success) {
             throw new Error(json.error || "Failed to load plans");
         }
+
+        // Update manager options dropdown using loaded plans data to avoid duplicate fetches
+        await refreshManagerFilterAndTabs(json.data);
 
         // Use a document fragment to minimize reflows
         const fragment = document.createDocumentFragment();

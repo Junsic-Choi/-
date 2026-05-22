@@ -37,3 +37,9 @@ CREATE TABLE equipment_holidays (
     sun INTEGER DEFAULT 0,
     PRIMARY KEY (equipment, weekId)
 );
+
+CREATE INDEX IF NOT EXISTS idx_plans_eq_week ON plans(equipment, weekId);
+CREATE INDEX IF NOT EXISTS idx_plans_weekId ON plans(weekId);
+CREATE INDEX IF NOT EXISTS idx_plans_manager ON plans(manager);
+CREATE INDEX IF NOT EXISTS idx_plans_eq_part ON plans(equipment, partNo);
+CREATE INDEX IF NOT EXISTS idx_plans_weekId_equipment ON plans(weekId, equipment);
