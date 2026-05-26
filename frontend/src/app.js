@@ -541,6 +541,8 @@ async function loadConsolidatedPlans() {
                 // Render Rows
                 let eqTotalPlan = 0;
                 let eqTotalActual = 0;
+                let totalItemsCount = 0;
+                let completedItemsCount = 0;
 
                 activePlans.forEach(plan => {
                     const isUrgent = plan.urgentStatus === 'URGENT';
@@ -624,6 +626,14 @@ async function loadConsolidatedPlans() {
                     });
                     eqTotalPlan += itemWeeklyPlan;
                     eqTotalActual += Math.min(itemWeeklyActual, itemWeeklyPlan);
+
+                    // 계획이 등록된 항목만 완료도 계산 (방안 A)
+                    if (itemWeeklyPlan > 0) {
+                        totalItemsCount++;
+                        if (itemWeeklyActual >= itemWeeklyPlan) {
+                            completedItemsCount++;
+                        }
+                    }
                 });
 
                 // Add Daily Plan Totals Row
@@ -648,7 +658,7 @@ async function loadConsolidatedPlans() {
                 totalRow.className = 'group-total-row';
 
                 let totalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">
-                    [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #EF4444;">(총 실적 달성률: ${achievementRate}%)</span>
+                    [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #EF4444;">(총 실적 달성률: ${achievementRate}% | 완료: ${completedItemsCount}/${totalItemsCount}개)</span>
                 </td>`;
                 days.forEach(d => {
                     if (equipmentHolidays[d] === 1) {
