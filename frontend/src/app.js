@@ -650,46 +650,59 @@ async function loadConsolidatedPlans() {
                 const averagePerDay = activeDaysCount > 0 ? (totalWeeklyPlan / activeDaysCount) : 0;
                 const achievementRate = eqTotalPlan > 0 ? Math.round((eqTotalActual / eqTotalPlan) * 100) : 0;
 
-                const totalRow = document.createElement('tr');
-                totalRow.className = 'group-total-row';
+                // --- 계획 합계 행 ---
+                const planTotalRow = document.createElement('tr');
+                planTotalRow.className = 'group-total-row plan-total-row';
 
-                let totalRowHtml = '';
-                if (isConsolidatedEditMode) {
-                    totalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">
-                        [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #1E3A8A;">(총 계획 수량: ${eqTotalPlan}개)</span>
-                    </td>`;
-                } else {
-                    totalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">
-                        [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #EF4444;">(총 실적 달성률: ${achievementRate}% | 완료: ${eqTotalActual}/${eqTotalPlan}개)</span>
-                    </td>`;
-                }
+                let planTotalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">
+                    [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #1E3A8A;">(총 계획 수량: ${eqTotalPlan}개)</span>
+                </td>`;
+
                 days.forEach(d => {
                     if (equipmentHolidays[d] === 1) {
-                        totalRowHtml += `<td class="grid-cell center holiday-column" style="vertical-align: middle; font-weight: bold; color: #1E3A8A;">
+                        planTotalRowHtml += `<td class="grid-cell center holiday-column" style="vertical-align: middle; font-weight: bold; color: #1E3A8A;">
                             <div class="stats-row center" style="font-size: 0.95rem;"></div>
                         </td>`;
                         return;
                     }
                     const pSum = dailyPlanSums[d];
-                    const aSum = dailyActualSums[d];
                     const isOverloaded = pSum > averagePerDay && pSum > 0;
                     const colorStyle = isOverloaded ? 'color: #EF4444;' : 'color: #1E3A8A;';
-                    
-                    let cellText = '';
-                    if (isConsolidatedEditMode) {
-                        cellText = pSum > 0 ? String(pSum) : '';
-                    } else {
-                        if (pSum > 0 || aSum > 0) {
-                            cellText = `${aSum}/${pSum}`;
-                        }
-                    }
+                    const cellText = pSum > 0 ? String(pSum) : '';
 
-                    totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; ${colorStyle}">
+                    planTotalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; ${colorStyle}">
                         <div class="stats-row center" style="font-size: 0.95rem;">${cellText}</div>
                     </td>`;
                 });
-                totalRow.innerHTML = totalRowHtml;
-                fragment.appendChild(totalRow);
+                planTotalRow.innerHTML = planTotalRowHtml;
+                fragment.appendChild(planTotalRow);
+
+                // --- 실적 합계 행 (수정 모드 아닐 때만 렌더링) ---
+                if (!isConsolidatedEditMode) {
+                    const actTotalRow = document.createElement('tr');
+                    actTotalRow.className = 'group-total-row actual-total-row';
+
+                    let actTotalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC; color: #EF4444;">
+                        [${eq}] 일별 실적 합계 <span style="margin-left: 15px;">(총 실적 달성률: ${achievementRate}% | 완료: ${eqTotalActual}/${eqTotalPlan}개)</span>
+                    </td>`;
+
+                    days.forEach(d => {
+                        if (equipmentHolidays[d] === 1) {
+                            actTotalRowHtml += `<td class="grid-cell center holiday-column" style="vertical-align: middle; font-weight: bold; color: #1E3A8A;">
+                                <div class="stats-row center" style="font-size: 0.95rem;"></div>
+                            </td>`;
+                            return;
+                        }
+                        const aSum = dailyActualSums[d];
+                        const cellText = aSum > 0 ? String(aSum) : '';
+
+                        actTotalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; color: #EF4444;">
+                            <div class="stats-row center" style="font-size: 0.95rem;">${cellText}</div>
+                        </td>`;
+                    });
+                    actTotalRow.innerHTML = actTotalRowHtml;
+                    fragment.appendChild(actTotalRow);
+                }
             }
             consolidatedTableBody.innerHTML = '';
             consolidatedTableBody.appendChild(fragment);
