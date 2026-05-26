@@ -28,6 +28,7 @@ const currentEquipmentTitle = document.getElementById('currentEquipmentTitle');
 const btnRefreshConsolidated = document.getElementById('refreshConsolidatedBtn');
 const editModeBtn = document.getElementById('editModeBtn');
 const saveConsolidatedBtn = document.getElementById('saveConsolidatedBtn');
+const exitConsolidatedBtn = document.getElementById('exitConsolidatedBtn');
 const saveActualsBtn = document.getElementById('saveActualsBtn');
 const exportExcelBtn = document.getElementById('exportExcelBtn');
 const toastEl = document.getElementById('toast');
@@ -600,18 +601,20 @@ async function loadConsolidatedPlans() {
                     fragment.appendChild(trPlan);
  
                     // 2. Actual Row
-                    const trAct = document.createElement('tr');
-                    trAct.className = 'actual-row';
-                    trAct.innerHTML = `
-                        <td></td><td></td><td></td><td></td>
-                        <td class="part-no-cell" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')" style="cursor: pointer; position: relative; text-align: center; vertical-align: middle;">
-                            ${isUrgent ? '<span class="importance-star" style="vertical-align: middle;">★</span>' : ''}
-                        </td>
-                        <td></td>
-                        <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: ${isUnscheduled ? '#EA580C' : '#EF4444'};">실적</td>
-                        ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'act')).join('')}
-                    `;
-                    fragment.appendChild(trAct);
+                    if (!isConsolidatedEditMode) {
+                        const trAct = document.createElement('tr');
+                        trAct.className = 'actual-row';
+                        trAct.innerHTML = `
+                            <td></td><td></td><td></td><td></td>
+                            <td class="part-no-cell" onclick="toggleUrgentStatus('${plan.id}', '${plan.urgentStatus || ''}')" style="cursor: pointer; position: relative; text-align: center; vertical-align: middle;">
+                                ${isUrgent ? '<span class="importance-star" style="vertical-align: middle;">★</span>' : ''}
+                            </td>
+                            <td></td>
+                            <td class="type-cell" style="background-color: #FFF; font-weight: 700; color: ${isUnscheduled ? '#EA580C' : '#EF4444'};">실적</td>
+                            ${days.map(d => getCellHtml(plan, d, equipmentHolidays, 'act')).join('')}
+                        `;
+                        fragment.appendChild(trAct);
+                    }
 
                     // Accumulate totals for achievement rate (capping actual at plan per item)
                     let itemWeeklyPlan = 0;
@@ -650,9 +653,16 @@ async function loadConsolidatedPlans() {
                 const totalRow = document.createElement('tr');
                 totalRow.className = 'group-total-row';
 
-                let totalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">
-                    [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #EF4444;">(총 실적 달성률: ${achievementRate}% | 완료: ${eqTotalActual}/${eqTotalPlan}개)</span>
-                </td>`;
+                let totalRowHtml = '';
+                if (isConsolidatedEditMode) {
+                    totalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">
+                        [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #1E3A8A;">(총 계획 수량: ${eqTotalPlan}개)</span>
+                    </td>`;
+                } else {
+                    totalRowHtml = `<td colspan="7" style="text-align: right; font-weight: bold; background-color: #F8FAFC;">
+                        [${eq}] 일별 계획 합계 <span style="margin-left: 15px; color: #EF4444;">(총 실적 달성률: ${achievementRate}% | 완료: ${eqTotalActual}/${eqTotalPlan}개)</span>
+                    </td>`;
+                }
                 days.forEach(d => {
                     if (equipmentHolidays[d] === 1) {
                         totalRowHtml += `<td class="grid-cell center holiday-column" style="vertical-align: middle; font-weight: bold; color: #1E3A8A;">
@@ -666,8 +676,12 @@ async function loadConsolidatedPlans() {
                     const colorStyle = isOverloaded ? 'color: #EF4444;' : 'color: #1E3A8A;';
                     
                     let cellText = '';
-                    if (pSum > 0 || aSum > 0) {
-                        cellText = `${aSum}/${pSum}`;
+                    if (isConsolidatedEditMode) {
+                        cellText = pSum > 0 ? String(pSum) : '';
+                    } else {
+                        if (pSum > 0 || aSum > 0) {
+                            cellText = `${aSum}/${pSum}`;
+                        }
                     }
 
                     totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; ${colorStyle}">
@@ -965,6 +979,7 @@ if (exportExcelBtn) {
         editModeBtn.style.pointerEvents = 'none';
         
         saveConsolidatedBtn.classList.remove('hidden');
+        if (exitConsolidatedBtn) exitConsolidatedBtn.classList.remove('hidden');
         if (saveActualsBtn) saveActualsBtn.classList.add('hidden');
         if (exportExcelBtn) exportExcelBtn.classList.add('hidden');
         if (btnRefreshConsolidated) btnRefreshConsolidated.classList.add('hidden');
@@ -989,11 +1004,7 @@ if (saveConsolidatedBtn) {
 
         const updates = Object.values(updateMap);
         if (updates.length === 0) {
-            isConsolidatedEditMode = false;
-            editModeBtn.innerHTML = '✏️ 수정 모드';
-            saveConsolidatedBtn.classList.add('hidden');
-            if (addUnscheduledBtn) addUnscheduledBtn.classList.remove('hidden');
-            loadConsolidatedPlans();
+            showToast('저장할 변경사항이 없습니다.');
             return;
         }
 
@@ -1006,20 +1017,6 @@ if (saveConsolidatedBtn) {
             const json = await res.json();
             if (json.success) {
                 showToast('계획 변경사항이 저장되었습니다! 🎉');
-                isConsolidatedEditMode = false;
-                
-                editModeBtn.innerHTML = '✏️ 수정 모드';
-                editModeBtn.classList.add('btn', 'btn-warning');
-                editModeBtn.classList.remove('status-badge');
-                editModeBtn.style.pointerEvents = 'auto';
-                
-                saveConsolidatedBtn.classList.add('hidden');
-                
-                if (saveActualsBtn) saveActualsBtn.classList.remove('hidden');
-                if (exportExcelBtn) exportExcelBtn.classList.remove('hidden');
-                if (btnRefreshConsolidated) btnRefreshConsolidated.classList.remove('hidden');
-                if (addUnscheduledBtn) addUnscheduledBtn.classList.remove('hidden');
-
                 loadConsolidatedPlans();
             } else {
                 alert('저장 실패: ' + (json.error || '알 수 없는 오류'));
@@ -1028,6 +1025,27 @@ if (saveConsolidatedBtn) {
             console.error(err);
             alert('네트워크 오류가 발생했습니다.');
         }
+    });
+}
+
+if (exitConsolidatedBtn) {
+    exitConsolidatedBtn.addEventListener('click', () => {
+        isConsolidatedEditMode = false;
+        
+        editModeBtn.innerHTML = '✏️ 수정 모드';
+        editModeBtn.classList.add('btn', 'btn-warning');
+        editModeBtn.classList.remove('status-badge');
+        editModeBtn.style.pointerEvents = 'auto';
+        
+        saveConsolidatedBtn.classList.add('hidden');
+        exitConsolidatedBtn.classList.add('hidden');
+        
+        if (saveActualsBtn) saveActualsBtn.classList.remove('hidden');
+        if (exportExcelBtn) exportExcelBtn.classList.remove('hidden');
+        if (btnRefreshConsolidated) btnRefreshConsolidated.classList.remove('hidden');
+        if (addUnscheduledBtn) addUnscheduledBtn.classList.remove('hidden');
+
+        loadConsolidatedPlans();
     });
 }
 
