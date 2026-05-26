@@ -802,7 +802,8 @@ async function loadConsolidatedPlans() {
                 });
 
                 // Add Daily Plan Totals Row
-                const dailySums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+                const dailyPlanSums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+                const dailyActualSums = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
                 let totalWeeklyPlan = 0;
                 let activeDaysCount = 0;
                 days.forEach(d => { if (equipmentHolidays[d] !== 1) activeDaysCount++; });
@@ -810,9 +811,11 @@ async function loadConsolidatedPlans() {
                 activePlans.forEach(p => {
                     days.forEach(d => {
                         if (equipmentHolidays[d] === 1) return; // Ignore holiday data for totals
-                        const val = parseInt(p[d]) || 0;
-                        dailySums[d] += val;
-                        totalWeeklyPlan += val;
+                        const pVal = parseInt(p[d]) || 0;
+                        const aVal = parseInt(p[`${d}_act`]) || 0;
+                        dailyPlanSums[d] += pVal;
+                        dailyActualSums[d] += aVal;
+                        totalWeeklyPlan += pVal;
                     });
                 });
 
@@ -832,11 +835,18 @@ async function loadConsolidatedPlans() {
                         </td>`;
                         return;
                     }
-                    const sum = dailySums[d];
-                    const isOverloaded = sum > averagePerDay && sum > 0;
+                    const pSum = dailyPlanSums[d];
+                    const aSum = dailyActualSums[d];
+                    const isOverloaded = pSum > averagePerDay && pSum > 0;
                     const colorStyle = isOverloaded ? 'color: #EF4444;' : 'color: #1E3A8A;';
+                    
+                    let cellText = '';
+                    if (pSum > 0 || aSum > 0) {
+                        cellText = `${aSum}/${pSum}`;
+                    }
+
                     totalRowHtml += `<td class="grid-cell center" style="background-color: #F8FAFC; vertical-align: middle; font-weight: bold; ${colorStyle}">
-                        <div class="stats-row center" style="font-size: 0.95rem;">${sum > 0 ? sum : ''}</div>
+                        <div class="stats-row center" style="font-size: 0.95rem;">${cellText}</div>
                     </td>`;
                 });
                 totalRow.innerHTML = totalRowHtml;
