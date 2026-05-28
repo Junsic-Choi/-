@@ -45,15 +45,15 @@ app.get('/plans/:equipment/:weekId', async (c) => {
         }
 
         // If no data for this week, fetch the most recent data for this equipment
-        const { results: pastRows } = await c.env.DB.prepare(
-            `SELECT * FROM plans WHERE equipment = ? AND weekId <= ? ORDER BY weekId DESC LIMIT 20`
-        ).bind(equipment, weekId).all();
+        const recentWeekRow = await c.env.DB.prepare(
+            `SELECT DISTINCT weekId FROM plans WHERE equipment = ? AND weekId < ? ORDER BY weekId DESC LIMIT 1`
+        ).bind(equipment, weekId).first();
 
-        if (pastRows && pastRows.length > 0) {
-            // Determine the most recent weekId from the past rows
-            const mostRecentWeekId = pastRows[0].weekId;
-            // Filter rows just for that most recent week
-            const latestWeekRows = pastRows.filter(r => r.weekId === mostRecentWeekId);
+        if (recentWeekRow) {
+            const mostRecentWeekId = recentWeekRow.weekId;
+            const { results: latestWeekRows } = await c.env.DB.prepare(
+                `SELECT * FROM plans WHERE equipment = ? AND weekId = ? ORDER BY id ASC`
+            ).bind(equipment, mostRecentWeekId).all();
 
             // Create placeholder rows, wiping out the day-specific values
             const carryoverData = latestWeekRows.map(row => ({

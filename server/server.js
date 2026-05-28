@@ -365,15 +365,18 @@ try {
             const rows = await all(sql, [equipment, weekId]);
             if (rows.length > 0) return res.json({ success: true, data: rows });
 
-            const pastSql = `
-                SELECT p.*, s.stdTime as standardTime FROM plans p
-                LEFT JOIN standard_times s ON p.equipment = s.equipment AND p.partNo = s.partNo
-                WHERE p.equipment = ? AND p.weekId <= ? ORDER BY p.weekId DESC LIMIT 20
-            `;
-            const pastRows = await all(pastSql, [equipment, weekId]);
-            if (pastRows.length > 0) {
-                const mostRecentWeekId = pastRows[0].weekId;
-                const latestWeekRows = pastRows.filter(r => r.weekId === mostRecentWeekId);
+            const recentWeekRow = await get(`
+                SELECT DISTINCT weekId FROM plans 
+                WHERE equipment = ? AND weekId < ? 
+                ORDER BY weekId DESC LIMIT 1
+            `, [equipment, weekId]);
+            if (recentWeekRow) {
+                const mostRecentWeekId = recentWeekRow.weekId;
+                const latestWeekRows = await all(`
+                    SELECT p.*, s.stdTime as standardTime FROM plans p
+                    LEFT JOIN standard_times s ON p.equipment = s.equipment AND p.partNo = s.partNo
+                    WHERE p.equipment = ? AND p.weekId = ? ORDER BY p.id ASC
+                `, [equipment, mostRecentWeekId]);
                 const carryoverData = latestWeekRows.map(row => ({
                     ...row, id: undefined, weekId,
                     mon: "", tue: "", wed: "", thu: "", fri: "", sat: "", sun: "",
