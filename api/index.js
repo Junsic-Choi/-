@@ -19,18 +19,30 @@ try {
         authToken: process.env.DATABASE_AUTH_TOKEN,
     });
 
+    const executeWithRetry = async (sql, params = [], retries = 3, delay = 500) => {
+        for (let i = 0; i < retries; i++) {
+            try {
+                return await client.execute({ sql, args: params });
+            } catch (err) {
+                console.error(`Turso Query failed (attempt ${i + 1}/${retries}):`, err.message);
+                if (i === retries - 1) throw err;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    };
+
     const run = async (sql, params = []) => {
-        const result = await client.execute({ sql, args: params });
+        const result = await executeWithRetry(sql, params);
         return { lastID: result.lastInsertRowid ? Number(result.lastInsertRowid) : null, changes: result.rowsAffected };
     };
 
     const all = async (sql, params = []) => {
-        const result = await client.execute({ sql, args: params });
+        const result = await executeWithRetry(sql, params);
         return result.rows;
     };
 
     const get = async (sql, params = []) => {
-        const result = await client.execute({ sql, args: params });
+        const result = await executeWithRetry(sql, params);
         return result.rows[0] || null;
     };
 
@@ -53,7 +65,7 @@ try {
     const logActivity = async (req, action, details) => {
         let username = req.get('X-User-Name') || 'unknown';
         try { username = decodeURIComponent(username); } catch(e) {}
-        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        const ip = req.headers['x-forwarded-for'] || (req.socket && req.socket.remoteAddress) || 'unknown';
         const timestamp = Date.now();
         try {
             await run(`INSERT INTO activity_logs (username, action, details, ip, timestamp) VALUES (?, ?, ?, ?, ?)`, 
@@ -63,7 +75,7 @@ try {
 
     app.post('/api/login', async (req, res) => {
         const { username, password } = req.body;
-        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        const ip = req.headers['x-forwarded-for'] || (req.socket && req.socket.remoteAddress) || 'unknown';
         const now = Date.now();
         if (password === ADMIN_PASSWORD) {
             await run(`INSERT INTO audit_logs (username, ip, status, timestamp) VALUES (?, ?, ?, ?)`, [username || 'unknown', ip, 'SUCCESS', now]);

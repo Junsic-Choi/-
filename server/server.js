@@ -28,19 +28,31 @@ try {
         authToken: dbAuthToken,
     });
 
+    const executeWithRetry = async (sql, params = [], retries = 3, delay = 500) => {
+        for (let i = 0; i < retries; i++) {
+            try {
+                return await client.execute({ sql, args: params });
+            } catch (err) {
+                console.error(`Turso Query failed (attempt ${i + 1}/${retries}):`, err.message);
+                if (i === retries - 1) throw err;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    };
+
     // Helper to maintain compatibility
     const run = async (sql, params = []) => {
-        const result = await client.execute({ sql, args: params });
+        const result = await executeWithRetry(sql, params);
         return { lastID: result.lastInsertRowid ? Number(result.lastInsertRowid) : null, changes: result.rowsAffected };
     };
 
     const all = async (sql, params = []) => {
-        const result = await client.execute({ sql, args: params });
+        const result = await executeWithRetry(sql, params);
         return result.rows;
     };
 
     const get = async (sql, params = []) => {
-        const result = await client.execute({ sql, args: params });
+        const result = await executeWithRetry(sql, params);
         return result.rows[0] || null;
     };
 
