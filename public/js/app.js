@@ -891,6 +891,9 @@ async function loadConsolidatedPlans() {
             table.classList.toggle('edit-active', isConsolidatedEditMode);
         }
 
+        // Load last week's incomplete plans
+        loadIncompletePlans();
+
     } catch (err) {
         console.error(err);
         consolidatedTableBody.innerHTML = '<tr><td colspan="14" style="text-align:center;">데이터를 불러오는 데 실패했습니다.</td></tr>';
@@ -1733,3 +1736,265 @@ async function deleteUnscheduledRow(id, equipment, partNo) {
     }
 }
 window.deleteUnscheduledRow = deleteUnscheduledRow;
+
+// --- 지난 주 미완료 계획 알림창 로직 ---
+
+function getPreviousWeekId(weekId) {
+    if (!weekId) return null;
+    const dateStr = getDateStringFromWeekId(weekId);
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    date.setDate(date.getDate() - 7);
+    return getWeekIdFromDate(date);
+}
+
+function getDismissedPlans() {
+    try {
+        const data = localStorage.getItem('mps_dismissed_incomplete_plans');
+        return data ? JSON.parse(data) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function dismissPlan(key) {
+    try {
+        const dismissed = getDismissedPlans();
+        if (!dismissed.includes(key)) {
+            dismissed.push(key);
+            localStorage.setItem('mps_dismissed_incomplete_plans', JSON.stringify(dismissed));
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function loadIncompletePlans() {
+    const listEl = document.getElementById('incompletePlansList');
+    const countEl = document.getElementById('incompleteCount');
+    const panel = document.getElementById('incompletePlansPanel');
+    const toggleIcon = document.getElementById('togglePanelIcon');
+    
+    if (panel && toggleIcon) {
+        const isMinimized = localStorage.getItem('mps_panel_minimized') === 'true';
+        if (isMinimized) {
+            panel.classList.add('minimized');
+            toggleIcon.textContent = '◀';
+            toggleIcon.title = '알림창 활성화';
+        } else {
+            panel.classList.remove('minimized');
+            toggleIcon.textContent = '▶';
+            toggleIcon.title = '알림창 최소화';
+        }
+    }
+
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div style="text-align: center; color: #94A3B8; padding: 1rem 0; font-size: 0.9rem;">조회 중...</div>';
+    countEl.textContent = '0';
+
+    const prevWeekId = getPreviousWeekId(currentWeekId);
+    if (!prevWeekId) {
+        listEl.innerHTML = '<div style="text-align: center; color: #94A3B8; padding: 1rem 0; font-size: 0.9rem;">이전 주차를 계산할 수 없습니다.</div>';
+        return;
+    }
+
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/plans-consolidated/${encodeURIComponent(prevWeekId)}`);
+        if (!res) return;
+        const json = await res.json();
+
+        if (json.success && Array.isArray(json.data)) {
+            const days = ['fri', 'sat', 'sun', 'mon', 'tue', 'wed', 'thu'];
+            const incompleteItems = [];
+            const dismissed = getDismissedPlans();
+
+            json.data.forEach(plan => {
+                let totalPlan = 0;
+                let totalActual = 0;
+
+                days.forEach(d => {
+                    totalPlan += parseInt(plan[d]) || 0;
+                    totalActual += parseInt(plan[`${d}_act`]) || 0;
+                });
+
+                // Filter incomplete: plan > actual AND plan > 0
+                if (totalPlan > 0 && totalActual < totalPlan) {
+                    const itemKey = plan.id ? String(plan.id) : `${prevWeekId}_${plan.equipment}_${plan.partNo}`;
+                    
+                    // Skip if dismissed by user
+                    if (dismissed.includes(itemKey)) return;
+
+                    incompleteItems.push({
+                        key: itemKey,
+                        manager: plan.manager || '미지정',
+                        partNo: plan.partNo,
+                        partName: plan.partName || '',
+                        model: plan.model || '-',
+                        totalPlan,
+                        totalActual
+                    });
+                }
+            });
+
+            const filterEl = document.getElementById('incompleteManagerFilter');
+            if (filterEl) {
+                const previousSelection = filterEl.value;
+                const managers = [...new Set(incompleteItems.map(item => item.manager))].filter(Boolean).sort();
+                
+                filterEl.innerHTML = '<option value="">전체 담당자</option>';
+                managers.forEach(mgr => {
+                    const opt = document.createElement('option');
+                    opt.value = mgr;
+                    opt.textContent = mgr;
+                    filterEl.appendChild(opt);
+                });
+
+                if (managers.includes(previousSelection)) {
+                    filterEl.value = previousSelection;
+                } else {
+                    filterEl.value = "";
+                }
+
+                if (!filterEl.dataset.listenerBound) {
+                    filterEl.addEventListener('change', applyIncompleteFilter);
+                    filterEl.dataset.listenerBound = 'true';
+                }
+            }
+
+            countEl.textContent = incompleteItems.length;
+
+            if (incompleteItems.length === 0) {
+                listEl.innerHTML = '<div style="text-align: center; color: #94A3B8; padding: 2rem 0; font-size: 0.9rem;">지난 주 미완료된 계획이 없습니다. 🎉</div>';
+                if (filterEl) {
+                    filterEl.innerHTML = '<option value="">전체 담당자</option>';
+                    filterEl.value = "";
+                }
+                return;
+            }
+
+            listEl.innerHTML = '';
+            incompleteItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'incomplete-item';
+                div.setAttribute('data-manager', item.manager);
+                
+                div.innerHTML = `
+                    <button class="close-btn" onclick="confirmDismissIncompletePlan('${item.key}', '${item.manager}', '${item.partNo}')">&times;</button>
+                    <div class="incomplete-title">${item.manager}</div>
+                    <div class="incomplete-details">
+                        <strong>품번:</strong> ${item.partNo}<br>
+                        ${item.partName ? `<strong>품명:</strong> ${item.partName}<br>` : ''}
+                        <strong>기종:</strong> ${item.model}
+                    </div>
+                    <div class="incomplete-progress">
+                        <span>계획 대비 실적</span>
+                        <span style="color: #EF4444; font-weight: bold;">${item.totalActual} / ${item.totalPlan}개</span>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
+
+            applyIncompleteFilter();
+        } else {
+            listEl.innerHTML = '<div style="text-align: center; color: #94A3B8; padding: 2rem 0; font-size: 0.9rem;">지난 주 데이터를 불러오는데 실패했습니다.</div>';
+        }
+    } catch (err) {
+        console.error("Failed to load last week's incomplete plans", err);
+        listEl.innerHTML = '<div style="text-align: center; color: #94A3B8; padding: 2rem 0; font-size: 0.9rem; color: #EF4444;">오류가 발생했습니다.</div>';
+    }
+}
+
+let pendingDismissKey = null;
+
+function showDeleteConfirmModal(key, messageText) {
+    pendingDismissKey = key;
+    const modal = document.getElementById('deleteConfirmModal');
+    const message = document.getElementById('deleteConfirmMessage');
+    if (messageText) message.textContent = messageText;
+    
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        modal.style.opacity = '1';
+        modal.style.pointerEvents = 'auto';
+        modal.querySelector('.modal-content').style.transform = 'translateY(0)';
+    }, 10);
+}
+
+function hideDeleteConfirmModal() {
+    pendingDismissKey = null;
+    const modal = document.getElementById('deleteConfirmModal');
+    if (!modal) return;
+    modal.style.opacity = '0';
+    modal.style.pointerEvents = 'none';
+    modal.querySelector('.modal-content').style.transform = 'translateY(20px)';
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 200);
+}
+
+function confirmDismissIncompletePlan(key, manager, partNo) {
+    const msg = `[${manager}] 담당자의 품번 [${partNo}] 미완료 계획 알림을 지우시겠습니까?\n(알림 목록에서만 제외되며, 실제 계획 데이터는 삭제되지 않습니다.)`;
+    showDeleteConfirmModal(key, msg);
+}
+
+// Bind confirmation modal events
+const confirmYesBtn = document.getElementById('deleteConfirmYesBtn');
+const confirmNoBtn = document.getElementById('deleteConfirmNoBtn');
+
+if (confirmNoBtn) confirmNoBtn.addEventListener('click', hideDeleteConfirmModal);
+if (confirmYesBtn) {
+    confirmYesBtn.addEventListener('click', () => {
+        if (pendingDismissKey) {
+            dismissPlan(pendingDismissKey);
+            showToast('✅ 알림이 목록에서 제외되었습니다.');
+            loadIncompletePlans();
+        }
+        hideDeleteConfirmModal();
+    });
+}
+
+function toggleIncompletePanel() {
+    const panel = document.getElementById('incompletePlansPanel');
+    const icon = document.getElementById('togglePanelIcon');
+    if (!panel || !icon) return;
+    
+    const isMinimized = panel.classList.toggle('minimized');
+    localStorage.setItem('mps_panel_minimized', isMinimized ? 'true' : 'false');
+    
+    if (isMinimized) {
+        icon.textContent = '◀';
+        icon.title = '알림창 활성화';
+    } else {
+        icon.textContent = '▶';
+        icon.title = '알림창 최소화';
+    }
+}
+
+function applyIncompleteFilter() {
+    const filterEl = document.getElementById('incompleteManagerFilter');
+    const listEl = document.getElementById('incompletePlansList');
+    const countEl = document.getElementById('incompleteCount');
+    if (!filterEl || !listEl || !countEl) return;
+
+    const selectedManager = filterEl.value;
+    const cards = listEl.querySelectorAll('.incomplete-item');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+        const mgr = card.getAttribute('data-manager');
+        if (!selectedManager || mgr === selectedManager) {
+            card.style.display = 'block';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+
+    countEl.textContent = visibleCount;
+}
+
+window.confirmDismissIncompletePlan = confirmDismissIncompletePlan;
+window.toggleIncompletePanel = toggleIncompletePanel;
+window.applyIncompleteFilter = applyIncompleteFilter;

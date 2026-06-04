@@ -680,4 +680,113 @@ input[type="text"]:focus {
 
 .urgent-part-no {
     color: #10B981 !important;
+}
+
+/* Consolidated View Floating Sidebar Drawer */
+.consolidated-side-panel {
+    position: fixed;
+    right: 0;
+    top: 140px;
+    width: 320px;
+    background: var(--card-bg, #FFFFFF);
+    border-radius: 12px 0 0 12px;
+    box-shadow: -5px 0 25px rgba(15, 23, 42, 0.15);
+    border: 1px solid var(--border-color, #E2E8F0);
+    border-right: none;
+    padding: 1.25rem;
+    z-index: 10000;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.consolidated-side-panel.minimized {
+    transform: translateX(320px);
+}
+
+.panel-toggle-btn {
+    position: absolute;
+    left: -36px;
+    top: 40px;
+    width: 36px;
+    height: 60px;
+    background: #1E3A8A;
+    color: white;
+    border: 1px solid #1E3A8A;
+    border-right: none;
+    border-radius: 10px 0 0 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: -4px 0 10px rgba(0, 0, 0, 0.1);
+    font-size: 0.85rem;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    z-index: 10001;
+    outline: none;
+}
+
+.panel-toggle-btn:hover {
+    background: #1D4ED8;
+    width: 40px;
+    left: -40px;
+}
+
+.incomplete-item {
+    background: #F8FAFC;
+    border: 1px solid var(--border-color, #E2E8F0);
+    border-radius: 8px;
+    padding: 0.75rem;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.incomplete-item:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border-color: #CBD5E1;
+}
+
+.incomplete-item .close-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    color: #94A3B8;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px;
+    transition: color 0.15s;
+}
+
+.incomplete-item .close-btn:hover {
+    color: #EF4444;
+}
+
+.incomplete-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--primary, #1E3A8A);
+    margin-bottom: 0.25rem;
+    padding-right: 1.5rem;
+}
+
+.incomplete-details {
+    font-size: 0.825rem;
+    color: var(--text-muted, #64748B);
+    margin-bottom: 0.5rem;
+    word-break: break-all;
+    line-height: 1.4;
+}
+
+.incomplete-progress {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    background: #E2E8F0;
+    padding: 0.35rem 0.6rem;
+    border-radius: 4px;
 }

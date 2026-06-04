@@ -298,6 +298,25 @@
                         </table>
                     </div>
                 </div>
+
+                <div id="incompletePlansPanel" class="consolidated-side-panel">
+                    <button id="togglePanelBtn" class="panel-toggle-btn" onclick="toggleIncompletePanel()">
+                        <span id="togglePanelIcon">▶</span>
+                    </button>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; border-bottom: 2px solid #E2E8F0; padding-bottom: 0.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 700; color: #1E3A8A; display: flex; align-items: center; gap: 6px; margin: 0;">
+                            🔔 지난 주 미완료 계획 (<span id="incompleteCount">0</span>)
+                        </h3>
+                    </div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <select id="incompleteManagerFilter" style="width: 100%; background: #F1F5F9; color: var(--text-main); border: 1px solid var(--border-color); height: 34px; padding: 0 10px; font-size: 0.85rem; border-radius: 6px; font-weight: 600; cursor: pointer; outline: none;">
+                            <option value="">전체 담당자</option>
+                        </select>
+                    </div>
+                    <div id="incompletePlansList" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 55vh; overflow-y: auto; padding-right: 2px;">
+                        <!-- Incomplete items will be injected here -->
+                    </div>
+                </div>
             </section>
         </main>
 
@@ -359,9 +378,22 @@
         </div>
     </div>
 
-        <!-- Toast Notification -->
-        <div id="toast" class="toast hidden">저장되었습니다.</div>
+    <!-- Custom Dismiss Confirmation Modal -->
+    <div id="deleteConfirmModal" class="modal-overlay hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 30000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;">
+        <div class="modal-content" style="background: white; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); width: 100%; max-width: 400px; padding: 1.5rem; text-align: center; border: 1px solid #E2E8F0; transform: translateY(20px); transition: transform 0.2s ease;">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">⚠️</div>
+            <h3 style="margin-top: 0; font-size: 1.25rem; font-weight: 700; color: #0F172A;">알림 지우기</h3>
+            <p id="deleteConfirmMessage" style="color: #475569; font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.5;">이 미완료 계획 알림을 목록에서 지우시겠습니까?</p>
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+                <button id="deleteConfirmNoBtn" class="btn btn-secondary" style="flex: 1; padding: 0.6rem 1rem; font-weight: 600; cursor: pointer; border-radius: 6px;">아니요</button>
+                <button id="deleteConfirmYesBtn" class="btn" style="flex: 1; padding: 0.6rem 1rem; font-weight: 600; background-color: #1E3A8A; color: white; border: none; cursor: pointer; border-radius: 6px;" onmouseover="this.style.backgroundColor='#1E40AF'" onmouseout="this.style.backgroundColor='#1E3A8A'">네</button>
+            </div>
+        </div>
     </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">저장되었습니다.</div>
+</div>
 
     <!-- SheetJS for Excel Export (Local Fallback for Intranet) -->
     <script src="js/xlsx.full.min.js"></script>
